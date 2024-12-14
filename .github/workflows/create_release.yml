@@ -46,12 +46,12 @@ jobs:
           echo "::set-output name=NEW_VERSION::$NEW_VERSION"  # Correct output syntax
           echo "{\"version\": \"$NEW_VERSION\"}" > latest_version.json
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-central-1
+      #- name: Configure AWS credentials
+      #  uses: aws-actions/configure-aws-credentials@v1
+      #   with:
+      #    aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #    aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #    aws-region: eu-central-1
 
       # - name: Copy latest_version.json to S3
       #   run: aws s3 cp latest_version.json s3://plugovr.ai/latest_version.json
@@ -66,8 +66,16 @@ jobs:
           draft: false
           prerelease: false
 
+
+      - name: Sync deploy with main
+        run: |
+          git fetch origin main
+          git checkout deploy
+          git merge origin/main --no-edit
+
     outputs:
       new_version: ${{ steps.update_version.outputs.NEW_VERSION }}
+  
 
   build:
     name: build
