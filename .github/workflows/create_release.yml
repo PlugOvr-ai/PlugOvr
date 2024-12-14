@@ -94,6 +94,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: deploy
+          submodules: true
 
 
       - name: Install LLVM and Clang
