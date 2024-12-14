@@ -169,12 +169,12 @@ impl AssistanceWindow {
                                                 if !self.screenshots.is_empty() {
                                                     ui.horizontal(|ui| {
                                                         for (i, screenshot) in self.screenshots.iter().enumerate() {
-                                                            let max_width = 100.0;
-                                                            let max_height = 100.0;
+                                                            let max_width = 100.0f32;
+                                                            let max_height = 100.0f32;
 
                                                             let scale = (max_width / screenshot.0.width() as f32)
                                                                 .min(max_height / screenshot.0.height() as f32)
-                                                                .min(1.0);
+                                                                .min(1.0f32);
 
                                                             let new_width = (screenshot.0.width() as f32 * scale) as u32;
                                                             let new_height = (screenshot.0.height() as f32 * scale) as u32;
