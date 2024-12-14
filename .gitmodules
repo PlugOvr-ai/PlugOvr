@@ -1,0 +1,3 @@
+[submodule "crates/plugovr_cs"]
+	path = crates/plugovr_cs
+	url = https://github.com/PlugOvr-ai/PlugOvr_cs.git
