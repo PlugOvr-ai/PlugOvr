@@ -19,6 +19,7 @@ pub struct MainWindow {
     llm_selector: Arc<Mutex<LLMSelector>>,
     show_template_editor: Arc<Mutex<bool>>,
     show_llm_selector: Arc<Mutex<bool>>,
+    show_login_window: Arc<Mutex<bool>>,
     pub menu_map: Arc<Mutex<Option<HashMap<String, String>>>>,
 }
 impl MainWindow {
@@ -87,6 +88,7 @@ impl MainWindow {
             llm_selector,
             show_template_editor,
             show_llm_selector,
+            show_login_window,
             menu_map,
         }
     }
