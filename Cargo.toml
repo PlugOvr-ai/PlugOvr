@@ -64,16 +64,16 @@ copyright = "Copyright (c) PlugOvr.ai 2024. All rights reserved."
 
 
 [features]
-default = ["three_d"]
+default = ["three_d", "cs"]
 three_d = ["egui_overlay/three_d"]
 wgpu = ["egui_overlay/wgpu"]
 glow = ["egui_overlay/glow"]
 cuda = ["kalosm/cuda"]
 metal = ["kalosm/metal"]
-#cs = ["plugovr_cs"]
+cs = ["plugovr_cs"]
 
 [dependencies]
-#plugovr_cs = { path = "crates/plugovr_cs", optional = true }
+plugovr_cs = { path = "crates/plugovr_cs", optional = true }
 plugovr_types = { path = "crates/plugovr_types" }
 
 egui_overlay = { version = "0.8.0", git = "https://github.com/PlugOvr-ai/egui_overlay.git", default-features = false, features = [
