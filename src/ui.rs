@@ -1,0 +1,9 @@
+pub mod answer_analyser;
+pub mod assistance_window;
+pub mod diff_view;
+pub mod main_window;
+pub mod screen_dimensions;
+pub mod shortcut_window;
+pub mod show_form_fields;
+pub mod template_editor;
+pub mod user_interface;

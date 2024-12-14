@@ -1,0 +1,241 @@
+on:
+  workflow_dispatch:
+
+name: create release
+env:
+  CARGO_INCREMENTAL: 0
+jobs:
+  bump_version:
+    name: Bump version
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+
+      - name: Install cargo-bump
+        run: cargo install cargo-bump
+
+      - name: Configure Git
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+
+      - name: Update version, create tag, and push changes
+        id: update_version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cargo bump patch
+          NEW_VERSION=$(cargo pkgid | sed -E 's/.*[#@]([0-9]+\.[0-9]+\.[0-9]+)$/\1/')
+          git add .
+          git commit -m "Bump version to $NEW_VERSION"
+          git tag -a "v$NEW_VERSION" -m "Release $NEW_VERSION"
+          git push origin HEAD:${{ github.ref }}
+          git push origin "v$NEW_VERSION"
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "::set-output name=NEW_VERSION::$NEW_VERSION"  # Correct output syntax
+          echo "{\"version\": \"$NEW_VERSION\"}" > latest_version.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+
+      # - name: Copy latest_version.json to S3
+      #   run: aws s3 cp latest_version.json s3://plugovr.ai/latest_version.json
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.update_version.outputs.NEW_VERSION }}  # Use the created tag
+          release_name: Release v${{ steps.update_version.outputs.NEW_VERSION }}  # Use the same tag for the release name
+          draft: false
+          prerelease: false
+
+    outputs:
+      new_version: ${{ steps.update_version.outputs.NEW_VERSION }}
+
+  build:
+    name: build
+    needs: bump_version
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        include:
+ #         - os: ubuntu-22.04
+          - os: ubuntu-24.04
+          - os: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "16.0"
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1
+
+      - name: Install dependencies # for glfw and rfd
+        if: startsWith(matrix.os, 'ubuntu')
+        run: sudo apt update && sudo apt install --no-install-recommends cmake build-essential libssl3 libdbus-1-3 libglfw3-dev libgtk-3-dev libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxdo-dev
+
+      - name: Fmt
+        run: cargo fmt --check
+
+      - name: Check
+        run: cargo check
+
+      - name: Clippy
+        run: cargo clippy
+
+      - name: Build
+        if: startsWith(matrix.os, 'macos')
+        run: cargo build --release --features glow --no-default-features
+
+      - name: Build
+        if: startsWith(matrix.os, 'ubuntu') || startsWith(matrix.os, 'windows')
+        run: cargo build --release
+
+      - name: Create Debian package
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          cargo install cargo-deb
+          cargo deb
+
+      - name: Create installer MacOS
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          cargo install cargo-bundle
+          cargo bundle --release
+      - name: Create installer Windows
+        if: startsWith(matrix.os, 'windows')
+        run: |
+          cargo install cargo-packager
+          cargo packager --release
+
+      - name: Sign files with Trusted Signing
+        if: startsWith(matrix.os, 'windows')
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: https://weu.codesigning.azure.net/
+          trusted-signing-account-name: corneliuswefelscheid
+          certificate-profile-name: PlugOvr
+          files-folder: ${{ github.workspace }}\target\release\
+          files-folder-filter: exe,dll
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+      
+      
+      # - name: Upload signed executable
+      #   if: startsWith(matrix.os, 'windows')
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: signed-executable
+      #     path: target\release\PlugOvr_${{ needs.bump_version.outputs.new_version }}_x64-setup.exe
+
+
+      # - name: Upload artifact for Linux
+      #   if: startsWith(matrix.os, 'ubuntu')
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: PlugOvr_linux_${{ matrix.os }}
+      #     path: |
+      #         target/release/PlugOvr
+      #         target/debian/*.deb
+
+      # - name: Upload artifact for Windows
+      #   if: startsWith(matrix.os, 'windows')
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: PlugOvr_win
+      #     path: |
+      #       target/release/*.exe
+
+      # - name: Upload artifact for MacOS
+      #   if: startsWith(matrix.os, 'macos')
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: PlugOvr_macos
+      #     path: |
+      #       target/release/PlugOvr
+      #       target/release/bundle/osx/*.app
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+
+      - name: Copy artifacts to S3 Linux
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          aws s3 cp target/debian/*.deb s3://plugovr.ai/plugovr_${{ needs.bump_version.outputs.new_version }}_amd64_${{ matrix.os }}.deb
+
+      - name: Copy artifacts to S3 Windows
+        if: startsWith(matrix.os, 'windows')
+        run: |
+          aws s3 cp target/release/PlugOvr_${{ needs.bump_version.outputs.new_version }}_x64-setup.exe s3://plugovr.ai/
+
+      - name: Copy artifacts to S3 MacOS
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          aws s3 cp target/release/PlugOvr s3://plugovr.ai/PlugOvr
+          aws s3 cp target/release/bundle/osx/*.app s3://plugovr.ai/
+
+          
+      #- name: Audit
+      #  run: cargo audit
+
+  update_latest_version:
+    name: Update latest version
+    needs: [bump_version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+
+      - name: Copy latest_version.json to S3
+        run: |
+          echo "{\"version\": \"${{ needs.bump_version.outputs.new_version }}\"}" > latest_version.json
+          aws s3 cp latest_version.json s3://plugovr.ai/latest_version.json

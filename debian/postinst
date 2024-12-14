@@ -1,0 +1,12 @@
+#!/bin/sh
+# Add user to input group
+if [ -z "$SUDO_USER" ]; then
+    echo "Warning: SUDO_USER is not set. Unable to add user to input group."
+else
+    if getent group input > /dev/null; then
+        usermod -a -G input "$SUDO_USER"
+        echo "Added user $SUDO_USER to input group."
+    else
+        echo "Warning: input group does not exist. Unable to add user to input group."
+    fi
+fi

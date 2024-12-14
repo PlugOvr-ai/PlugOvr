@@ -1,0 +1,19 @@
+[package]
+name = "plugovr_types"
+version = "0.1.73"
+edition = "2021"
+license-file = "LICENSE"
+authors = ["Cornelius Wefelscheid <cw@plugovr.ai>"]
+description = "PlugOvr provides AI assistance to every program."
+homepage = "https://plugovr.ai"
+
+repository = "https://github.com/PlugOvr-ai/PlugOvr_types"
+#maintainers = ["Cornelius Wefelscheid <cw@plugovr.ai>"]
+publish = false
+
+
+[dependencies]
+
+image = "0.24.9"
+serde = "1.0.216"
+egui = "0.28.1"
