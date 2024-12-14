@@ -1,6 +1,6 @@
 [package]
 name = "PlugOvr"
-version = "0.1.79"
+version = "0.1.80"
 edition = "2021"
 license-file = "LICENSE"
 authors = ["Cornelius Wefelscheid <cw@plugovr.ai>"]
