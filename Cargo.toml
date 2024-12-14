@@ -1,6 +1,6 @@
 [package]
 name = "PlugOvr"
-version = "0.2.6"
+version = "0.1.77"
 edition = "2021"
 license-file = "LICENSE"
 authors = ["Cornelius Wefelscheid <cw@plugovr.ai>"]
@@ -113,7 +113,6 @@ arboard = "3.4.1"
 ollama-rs = { version = "0.2.1", features = ["stream"] }
 regex = "1.11.1"
 tray-icon = "0.19.2"
-webbrowser = "1.0.3"
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -143,6 +142,3 @@ active-win-pos-rs = "0.8.3"
 
 [build-dependencies]
 winresource = "0.1.17"
-
-[profile.release]
-lto = true

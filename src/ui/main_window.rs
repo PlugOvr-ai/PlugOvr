@@ -9,6 +9,10 @@ use plugovr_types::UserInfo;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use webbrowser;
+
+#[cfg(feature = "computeruse_editor")]
+use crate::usecase_editor::UsecaseEditor;
+
 pub struct MainWindow {
     #[cfg(feature = "cs")]
     login_window: LoginWindow,
@@ -18,11 +22,15 @@ pub struct MainWindow {
     pub is_loading_user_info: Arc<Mutex<bool>>,
     pub version_msg: Arc<Mutex<String>>,
     pub version_msg_old: Arc<Mutex<String>>,
-    llm_selector: Arc<Mutex<LLMSelector>>,
+    pub llm_selector: Arc<Mutex<LLMSelector>>,
     show_template_editor: Arc<Mutex<bool>>,
     show_llm_selector: Arc<Mutex<bool>>,
     show_login_window: Arc<Mutex<bool>>,
     pub menu_map: Arc<Mutex<Option<HashMap<String, String>>>>,
+    #[cfg(feature = "computeruse_editor")]
+    show_usecase_editor: Arc<Mutex<bool>>,
+    #[cfg(feature = "computeruse_editor")]
+    usecase_editor: Arc<Mutex<UsecaseEditor>>,
 }
 impl MainWindow {
     pub fn new(
@@ -31,11 +39,14 @@ impl MainWindow {
         prompt_templates: TemplateMap,
         llm_selector: Arc<Mutex<LLMSelector>>,
         version_msg: Arc<Mutex<String>>,
+        #[cfg(feature = "computeruse_editor")] usecase_editor: Arc<Mutex<UsecaseEditor>>,
     ) -> Self {
         use tray_icon::menu::MenuEvent;
         let show_login_window = Arc::new(Mutex::new(false));
         let show_template_editor = Arc::new(Mutex::new(false));
         let show_llm_selector = Arc::new(Mutex::new(false));
+        #[cfg(feature = "computeruse_editor")]
+        let show_usecase_editor = Arc::new(Mutex::new(false));
         #[cfg(feature = "cs")]
         let login_window = LoginWindow::new(user_info.clone(), is_loading_user_info.clone());
         let template_editor = TemplateEditor::new(prompt_templates.clone());
@@ -48,6 +59,8 @@ impl MainWindow {
             let show_llm_selector = show_llm_selector.clone();
             let user_info = user_info.clone();
             let menu_map = menu_map.clone();
+            #[cfg(feature = "computeruse_editor")]
+            let show_usecase_editor = show_usecase_editor.clone();
             std::thread::spawn(move || {
                 while let Ok(recv) = menu_channel.recv() {
                     let id = recv.id().0.to_string();
@@ -61,6 +74,11 @@ impl MainWindow {
                             } else {
                                 *show_login_window.lock().unwrap() = true;
                             }
+                        }
+                        #[cfg(feature = "computeruse_editor")]
+                        if id == *menu_map.get("Usecase Editor").unwrap_or(&"".to_string()) {
+                            println!("Usecase Editor");
+                            *show_usecase_editor.lock().unwrap() = true;
                         }
                         if id == *menu_map.get("Template Editor").unwrap_or(&"".to_string()) {
                             println!("Template Editor");
@@ -96,6 +114,10 @@ impl MainWindow {
             show_llm_selector,
             show_login_window,
             menu_map,
+            #[cfg(feature = "computeruse_editor")]
+            show_usecase_editor,
+            #[cfg(feature = "computeruse_editor")]
+            usecase_editor,
         }
     }
     pub fn show(&mut self, egui_context: &egui::Context) {
@@ -115,6 +137,14 @@ impl MainWindow {
         }
         if self.template_editor.show {
             self.template_editor.show_template_editor(egui_context);
+        }
+        #[cfg(feature = "computeruse_editor")]
+        if *self.show_usecase_editor.lock().unwrap() {
+            *self.show_usecase_editor.lock().unwrap() = self
+                .usecase_editor
+                .lock()
+                .unwrap()
+                .show_editor(egui_context);
         }
         if *self.show_llm_selector.lock().unwrap() {
             self.llm_selector.lock().unwrap().toggle_window();

@@ -7,7 +7,7 @@ use crate::ui::answer_analyser::FormFields;
 //#[cfg(target_os = "macos")]
 //use enigo::{Enigo, Key, Keyboard, Settings, };
 //#[cfg(any(target_os = "linux", target_os = "windows"))]
-use rdev::{simulate, Button, EventType};
+use rdev::{Button, EventType, simulate};
 use std::collections::HashSet;
 use std::error::Error;
 use std::sync::{Arc, Mutex};

@@ -3,8 +3,6 @@ use kalosm::language::*;
 #[cfg(feature = "cs")]
 use plugovr_cs::cloud_llm::call_aws_lambda;
 use plugovr_types::{Screenshots, UserInfo};
-use reqwest::header::{HeaderMap, HeaderValue};
-use serde_json::json;
 use std::error::Error;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
@@ -14,14 +12,13 @@ use plugovr_cs::user_management::get_user;
 
 use egui::{Context, Window};
 
-use image::{ImageBuffer, Rgba};
+use image_24::{ImageBuffer, Rgba};
 use ollama_rs::{
-    generation::chat::{request::ChatMessageRequest, ChatMessage, MessageRole},
+    Ollama,
+    generation::chat::{ChatMessage, MessageRole, request::ChatMessageRequest},
     generation::images::Image,
     generation::options::GenerationOptions,
-    Ollama,
 };
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fs::File;
@@ -37,7 +34,7 @@ async fn call_ollama(
     ai_answer: Arc<Mutex<String>>,
     screenshots: &Screenshots,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
-    use base64::{engine::general_purpose, Engine as _};
+    use base64::{Engine as _, engine::general_purpose};
 
     let screenshot_base64 = screenshots
         .iter()
@@ -46,7 +43,7 @@ async fn call_ollama(
             img.0
                 .write_to(
                     &mut std::io::Cursor::new(&mut buf),
-                    image::ImageOutputFormat::Png,
+                    image_24::ImageOutputFormat::Png,
                 )
                 .unwrap();
             general_purpose::STANDARD.encode(&buf)
@@ -119,42 +116,18 @@ async fn call_local_llm(
             "Model is not locked",
         )));
     }
-    let markers = model
-        .as_ref()
-        .unwrap()
-        .as_ref()
-        .unwrap()
-        .chat_markers()
-        .clone();
-    let prompt = format!(
-        "{}\nYou are a helpful AI assistant.{}{}Context: {} Instruction: {}{}{}",
-        markers.as_ref().unwrap().system_prompt_marker,
-        markers.as_ref().unwrap().end_system_prompt_marker,
-        markers.as_ref().unwrap().user_marker,
-        context,
-        instruction,
-        markers.as_ref().unwrap().end_user_marker,
-        markers.as_ref().unwrap().assistant_marker,
-    );
 
-    let stop_on = markers
-        .as_ref()
-        .map(|m| m.end_assistant_marker.to_string())
-        .unwrap_or_else(|| "# Input".to_string());
+    let prompt = format!("Context: {} Instruction: {}", context, instruction);
+
     let model_instance = {
         let mut guard = model.unwrap();
         guard.as_mut().unwrap().clone()
     };
-
-    let mut output = model_instance
-        .stream_text(&prompt)
-        .with_max_length(1000)
-        .with_stop_on(stop_on)
-        .await
-        .unwrap();
+    let mut stream = model_instance(&prompt);
 
     let mut response = String::new();
-    while let Some(token) = output.next().await {
+
+    while let Some(token) = stream.next().await {
         response.push_str(&token);
 
         // Update ai_answer with the current response
@@ -222,7 +195,7 @@ pub struct LLMSelector {
     show_window: bool,
     download_progress: Arc<Mutex<f32>>,
     download_error: Arc<Mutex<Option<String>>>,
-    user_info: Arc<Mutex<Option<UserInfo>>>,
+    pub user_info: Arc<Mutex<Option<UserInfo>>>,
     ollama: Arc<Mutex<Option<Ollama>>>,
     pub ollama_models: Arc<Mutex<Option<Vec<ollama_rs::models::LocalModel>>>>,
 }
@@ -286,7 +259,7 @@ impl LLMSelector {
         max_tokens_reached: Arc<Mutex<bool>>,
         spinner: Arc<Mutex<bool>>,
         llm_from_template: Option<LLMType>,
-    ) {
+    ) -> Result<tokio::task::JoinHandle<()>, Box<dyn Error + Send + Sync>> {
         let mut llm_type = self.llm_type.clone();
         if let Some(llm_from_template) = llm_from_template {
             llm_type = llm_from_template;
@@ -301,11 +274,14 @@ impl LLMSelector {
         {
             *ai_answer.lock().unwrap() =
                 "Please login to use cloud LLM or switch to local LLM".to_string();
-            return;
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Please login to use cloud LLM or switch to local LLM",
+            )));
         }
         let ollama = self.ollama.clone();
 
-        tokio::task::spawn_blocking(move || {
+        let handle = tokio::task::spawn_blocking(move || {
             *spinner_clone.lock().unwrap() = true;
             let llm_type_clone = llm_type.clone();
             let result: Result<(String, bool), Box<dyn Error + Send + Sync>> = match llm_type {
@@ -389,6 +365,7 @@ impl LLMSelector {
             *max_tokens_reached.lock().unwrap() = result.1;
             *spinner.lock().unwrap() = false;
         });
+        Ok(handle)
     }
 
     pub fn show_selection_window(&mut self, ctx: &Context) {

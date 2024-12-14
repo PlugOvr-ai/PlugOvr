@@ -22,8 +22,8 @@ pub struct ActiveWindow(pub usize);
 pub fn activate_window(window_title: &ActiveWindow) -> Result<(), Box<dyn Error>> {
     use std::time::Duration;
     use x11rb::connection::Connection;
-    use x11rb::protocol::xproto::{ConnectionExt, EventMask, Window};
     use x11rb::protocol::Event;
+    use x11rb::protocol::xproto::{ConnectionExt, EventMask, Window};
 
     let (conn, screen_num) = x11rb::connect(None)?;
     let screen = &conn.setup().roots[screen_num];
@@ -73,11 +73,9 @@ pub fn activate_window(window_title: &ActiveWindow) -> Result<(), Box<dyn Error>
     let start_time = std::time::Instant::now();
     let timeout = Duration::from_millis(10);
     while start_time.elapsed() < timeout {
-        if let Some(event) = conn.poll_for_event()? {
-            if let Event::PropertyNotify(e) = event {
-                if e.window == window_id && e.atom == net_wm_state {
-                    break;
-                }
+        if let Some(Event::PropertyNotify(e)) = conn.poll_for_event()? {
+            if e.window == window_id && e.atom == net_wm_state {
+                break;
             }
         }
         std::thread::sleep(Duration::from_millis(10));

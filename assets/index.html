@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlugOvr Remote Control</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .screenshot-container {
+            position: relative;
+            margin-bottom: 20px;
+            display: inline-block;
+        }
+
+        #screenshot {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        input[type="text"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 300px;
+            margin-right: 10px;
+        }
+
+        .status {
+            display: inline-block;
+            margin-left: 10px;
+            padding: 10px 15px;
+            border-radius: 4px;
+            background-color: #e9ecef;
+        }
+
+        .status.planning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .status.computing {
+            background-color: #cce5ff;
+            color: #004085;
+        }
+
+        .status-icon {
+            margin-right: 10px;
+            font-weight: bold;
+            min-width: 20px;
+        }
+
+        .list-group-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 15px;
+            border-left: 4px solid transparent;
+        }
+
+        .list-group-item.active {
+            background-color: #e3f2fd;
+            border-left-color: #007bff;
+            color: #000;
+        }
+
+        .list-group-item-success {
+            background-color: #f8fff8;
+            border-left-color: #28a745;
+        }
+
+        .card {
+            margin-top: 20px;
+            position: sticky;
+            top: 20px;
+        }
+
+        .action-plan {
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            max-height: 100%;
+            position: absolute;
+            width: 100%;
+            top: 0;
+        }
+
+        .action-plan-column {
+            position: relative;
+        }
+
+        .screenshot-column,
+        .action-plan-column {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #action-plan {
+            overflow-y: auto;
+            flex-grow: 1;
+            min-height: 0;
+        }
+
+        .action-text {
+            flex-grow: 1;
+        }
+
+        .input-group {
+            margin-bottom: 10px;
+        }
+
+        .input-group-text {
+            background-color: #f8f9fa;
+            min-width: 120px;
+        }
+
+        /* Add styles for URL settings section */
+        #urlSettingsSection {
+            display: none;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .settings-toggle {
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-decoration: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .settings-toggle:hover {
+            color: #007bff;
+        }
+
+        .settings-toggle i {
+            margin-right: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>PlugOvr Remote Control</h1>
+        <div class="controls">
+            <div class="mb-3">
+                <input type="text" id="instructionInput" placeholder="Enter new instruction">
+                <button id="executeBtn">Plan Actions</button>
+                <button id="nextBtn">Perform Next Action</button>
+                <div class="form-check form-check-inline ms-2">
+                    <input class="form-check-input" type="checkbox" id="autoModeCheckbox">
+                    <label class="form-check-label" for="autoModeCheckbox">Auto Mode</label>
+                </div>
+                <button id="stopBtn" class="btn btn-danger" style="display: none;">Stop Execution</button>
+                <span id="status" class="status">Ready</span>
+                <a id="toggleUrlSettings" class="settings-toggle ms-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                        class="bi bi-gear" viewBox="0 0 16 16">
+                        <path
+                            d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z" />
+                        <path
+                            d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z" />
+                    </svg>&nbsp;
+                    URL Settings
+                </a>
+            </div>
+
+            <div id="urlSettingsSection">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text">Planning URL</span>
+                            <input type="text" id="planningUrlInput" class="form-control"
+                                placeholder="Enter planning URL">
+                            <button id="setPlanningUrlBtn" class="btn btn-outline-secondary">Set</button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text">Execution URL</span>
+                            <input type="text" id="executionUrlInput" class="form-control"
+                                placeholder="Enter execution URL">
+                            <button id="setExecutionUrlBtn" class="btn btn-outline-secondary">Set</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-8 screenshot-column">
+                <img id="screenshot" class="img-fluid" src="" alt="Screenshot">
+            </div>
+            <div class="col-lg-4 action-plan-column">
+                <div class="action-plan">
+                    <div class="card-header">
+                        <h5 class="mb-0">Action Plan</h5>
+                    </div>
+                    <div id="action-plan" class="list-group list-group-flush">
+                        <!-- Action plan will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let currentScreenshot = null;
+        let animationFrame = null;
+        let currentAction = null;
+        let lastUpdateTime = 0;
+        const UPDATE_THROTTLE = 50; // Minimum time between updates in ms
+
+        // Fetch current URLs when page loads
+        window.addEventListener('DOMContentLoaded', fetchCurrentUrls);
+
+        function fetchCurrentUrls() {
+            fetch('/urls')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('planningUrlInput').value = data.planning_url;
+                    document.getElementById('executionUrlInput').value = data.execution_url;
+                })
+                .catch(error => console.error('Error fetching URLs:', error));
+        }
+
+        function connect() {
+            ws = new WebSocket(`ws://${window.location.host}/ws`);
+
+            ws.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+                if (data.type === 'update') {
+                    // Update screenshot
+                    if (data.screenshot) {
+                        document.getElementById('screenshot').src = 'data:image/png;base64,' + data.screenshot;
+                    }
+
+                    // Update action plan
+                    const actionPlanElement = document.getElementById('action-plan');
+                    actionPlanElement.innerHTML = ''; // Clear existing content
+
+                    if (data.action_plan) {
+                        console.log('Received action plan:', data.action_plan); // Debug log
+                        data.action_plan.forEach(action => {
+                            const actionElement = document.createElement('div');
+                            actionElement.className = 'list-group-item';
+
+                            if (action.executed) {
+                                actionElement.classList.add('list-group-item-success');
+                            }
+                            if (action.current) {
+                                actionElement.classList.add('active');
+                                // Add a data attribute to identify the current action
+                                actionElement.setAttribute('data-current', 'true');
+                            }
+
+                            // Format the action details
+                            let actionText = '';
+                            const actionData = action.action;
+                            // Match the ActionTypes enum from Rust
+                            if (actionData.type === 'Click') {
+                                actionText = `Click: ${actionData.value}`;
+                            } else if (actionData.type === 'ClickPosition') {
+                                const [x, y] = actionData.value;
+                                actionText = `Click at position (${x}, ${y})`;
+                            } else if (actionData.type === 'InsertText') {
+                                actionText = `Type text: "${actionData.value}"`;
+                            } else if (actionData.type === 'KeyPress') {
+                                actionText = `Press key: ${actionData.value}`;
+                            } else if (actionData.type === 'KeyDown') {
+                                actionText = `Key down: ${actionData.value}`;
+                            } else if (actionData.type === 'KeyUp') {
+                                actionText = `Key up: ${actionData.value}`;
+                            } else if (actionData.type === 'GrabScreenshot') {
+                                actionText = 'Capture screenshot';
+                            } else if (actionData.type === 'Replan') {
+                                actionText = 'Replan actions';
+                            } else {
+                                actionText = JSON.stringify(actionData); // Fallback for unknown actions
+                            }
+
+                            // Add status icon
+                            const statusIcon = action.executed ? '✓' : action.current ? '▶' : '⋯';
+                            actionElement.innerHTML = `
+                                <span class="status-icon">${statusIcon}</span>
+                                <span class="action-text">${actionText}</span>
+                            `;
+
+                            actionPlanElement.appendChild(actionElement);
+                        });
+
+                        // Scroll the action plan container (not the page) to show the current action
+                        const currentAction = actionPlanElement.querySelector('[data-current="true"]');
+                        if (currentAction) {
+                            const container = actionPlanElement;
+                            const containerRect = container.getBoundingClientRect();
+                            const elementRect = currentAction.getBoundingClientRect();
+                            const relativeTop = elementRect.top - containerRect.top;
+
+                            container.scrollTop = container.scrollTop + relativeTop - (containerRect.height / 2) + (elementRect.height / 2);
+                        }
+                    }
+
+                    // Add status update
+                    updateStatus(data);
+
+                    // Only update URL fields if they are explicitly included in the update
+                    if (data.planning_url !== undefined) {
+                        document.getElementById('planningUrlInput').value = data.planning_url;
+                    }
+                    if (data.execution_url !== undefined) {
+                        document.getElementById('executionUrlInput').value = data.execution_url;
+                    }
+
+                    // Only update auto mode state if it's a dedicated auto_mode update
+                    if (data.type === 'auto_mode_update') {
+                        document.getElementById('autoModeCheckbox').checked = data.enabled;
+                        document.getElementById('stopBtn').style.display = data.enabled ? 'inline-block' : 'none';
+                    }
+                } else if (data.type === 'url_update') {
+                    // Handle explicit URL updates
+                    if (data.planning_url) {
+                        document.getElementById('planningUrlInput').value = data.planning_url;
+                    }
+                    if (data.execution_url) {
+                        document.getElementById('executionUrlInput').value = data.execution_url;
+                    }
+                }
+            };
+
+            ws.onclose = function () {
+                setTimeout(connect, 1000);
+            };
+        }
+
+        function updateScreenshot(base64Image) {
+            const img = document.getElementById('screenshot');
+            img.src = `data:image/png;base64,${base64Image}`;
+            img.onload = function () {
+                currentScreenshot = img;
+                updateOverlayDimensions();
+                if (img.naturalWidth > 800) {
+                    img.style.width = '800px';
+                }
+            };
+        }
+
+        function updateOverlayDimensions() {
+            if (!currentScreenshot) return;
+
+            const canvas = document.getElementById('overlay');
+            const container = document.querySelector('.screenshot-container');
+
+            canvas.width = currentScreenshot.clientWidth;
+            canvas.height = currentScreenshot.clientHeight;
+
+            container.style.width = currentScreenshot.clientWidth + 'px';
+            container.style.height = currentScreenshot.clientHeight + 'px';
+        }
+
+        function updateOverlay(action) {
+            if (!action || !currentScreenshot) return;
+
+            // Cancel any existing animation when we get a new action
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+                animationFrame = null;
+            }
+
+            const canvas = document.getElementById('overlay');
+            const ctx = canvas.getContext('2d');
+
+            if (action.type === 'ClickPosition') {
+                const [x, y] = action.value;
+                const scaleX = canvas.width / currentScreenshot.naturalWidth;
+                const scaleY = canvas.height / currentScreenshot.naturalHeight;
+
+                const scaledX = x * scaleX;
+                const scaledY = y * scaleY;
+
+                // Animation state
+                let startTime = performance.now();
+                const animationDuration = 1500; // 1.5 seconds per cycle
+
+                function animate(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = (elapsed % animationDuration) / animationDuration;
+
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    // Draw outer pulsing circle
+                    const pulseRadius = 15 + Math.sin(progress * Math.PI * 2) * 5; // Radius varies between 10 and 20
+                    const pulseAlpha = 0.3 + Math.sin(progress * Math.PI * 2) * 0.1; // Alpha varies between 0.2 and 0.4
+
+                    // Draw outer glow
+                    const gradient = ctx.createRadialGradient(
+                        scaledX, scaledY, 0,
+                        scaledX, scaledY, pulseRadius * 1.5
+                    );
+                    gradient.addColorStop(0, `rgba(255, 0, 0, ${pulseAlpha})`);
+                    gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+
+                    ctx.beginPath();
+                    ctx.arc(scaledX, scaledY, pulseRadius * 1.5, 0, 2 * Math.PI);
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+
+                    // Draw solid inner circle
+                    ctx.beginPath();
+                    ctx.arc(scaledX, scaledY, 8, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+                    ctx.fill();
+
+                    // Continue animation only if this is still the current action
+                    if (JSON.stringify(action) === JSON.stringify(currentAction)) {
+                        animationFrame = requestAnimationFrame(animate);
+                    } else {
+                        animationFrame = null;
+                    }
+                }
+
+                // Start animation
+                animationFrame = requestAnimationFrame(animate);
+            }
+        }
+
+        function updateStatus(data) {
+            const status = document.getElementById('status');
+
+            if (data.computing_plan) {
+                status.textContent = 'Planning next steps...';
+                status.className = 'status planning';
+            } else if (data.computing) {
+                status.textContent = 'Computing next action...';
+                status.className = 'status computing';
+            } else {
+                status.textContent = 'Ready';
+                status.className = 'status';
+            }
+        }
+
+        document.getElementById('nextBtn').onclick = function () {
+            fetch('/command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: 'next'
+                })
+            });
+        };
+
+        document.getElementById('executeBtn').onclick = function () {
+            const instruction = document.getElementById('instructionInput').value;
+            if (!instruction) return;
+
+            fetch('/command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: 'new_instruction',
+                    instruction: instruction
+                })
+            });
+
+            document.getElementById('instructionInput').value = '';
+        };
+
+        // Add auto mode functionality
+        document.getElementById('autoModeCheckbox').onchange = function () {
+            const isChecked = this.checked;
+            document.getElementById('stopBtn').style.display = isChecked ? 'inline-block' : 'none';
+
+            fetch('/command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: 'set_auto_mode',
+                    enabled: isChecked
+                })
+            });
+        };
+
+        document.getElementById('stopBtn').onclick = function () {
+            document.getElementById('autoModeCheckbox').checked = false;
+            document.getElementById('stopBtn').style.display = 'none';
+
+            fetch('/command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: 'set_auto_mode',
+                    enabled: false
+                })
+            });
+        };
+
+        // Add event listeners for URL buttons
+        document.getElementById('setPlanningUrlBtn').onclick = function () {
+            const url = document.getElementById('planningUrlInput').value;
+            if (!url) return;
+
+            fetch('/urls/planning', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: 'set_planning_url',
+                    url: url
+                })
+            })
+                .then(response => response.text())
+                .then(result => console.log(result))
+                .catch(error => console.error('Error setting planning URL:', error));
+        };
+
+        document.getElementById('setExecutionUrlBtn').onclick = function () {
+            const url = document.getElementById('executionUrlInput').value;
+            if (!url) return;
+
+            fetch('/urls/execution', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: 'set_execution_url',
+                    url: url
+                })
+            })
+                .then(response => response.text())
+                .then(result => console.log(result))
+                .catch(error => console.error('Error setting execution URL:', error));
+        };
+
+        // Add toggle functionality for URL settings
+        document.getElementById('toggleUrlSettings').onclick = function () {
+            const urlSettingsSection = document.getElementById('urlSettingsSection');
+            if (urlSettingsSection.style.display === 'block') {
+                urlSettingsSection.style.display = 'none';
+            } else {
+                urlSettingsSection.style.display = 'block';
+            }
+        };
+
+        // Handle window resize
+        window.addEventListener('resize', updateOverlayDimensions);
+
+        // Cleanup animation when page is hidden/closed
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && animationFrame) {
+                cancelAnimationFrame(animationFrame);
+                animationFrame = null;
+            }
+        });
+
+        connect();
+    </script>
+</body>
+
+</html>

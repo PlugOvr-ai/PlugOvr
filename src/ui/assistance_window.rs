@@ -10,9 +10,9 @@ use crate::ui::show_form_fields::FormFieldsOverlay;
 use crate::window_handling;
 use crate::window_handling::ActiveWindow;
 use arboard::Clipboard;
-use egui::scroll_area::ScrollBarVisibility;
 use egui::Layout;
 use egui::ScrollArea;
+use egui::scroll_area::ScrollBarVisibility;
 use itertools::Itertools;
 use screenshots::Screen;
 use std::collections::BTreeSet;
@@ -179,11 +179,11 @@ impl AssistanceWindow {
                                                             let new_width = (screenshot.0.width() as f32 * scale) as u32;
                                                             let new_height = (screenshot.0.height() as f32 * scale) as u32;
 
-                                                            let screenshot_small = image::imageops::resize(
+                                                            let screenshot_small = image_24::imageops::resize(
                                                                 &screenshot.0,
                                                                 new_width,
                                                                 new_height,
-                                                                image::imageops::FilterType::Triangle,
+                                                                image_24::imageops::FilterType::Triangle,
                                                             );
 
                                                             let size = [new_width as _, new_height as _];
@@ -306,7 +306,7 @@ impl AssistanceWindow {
                     let ai_answer_clone = self.ai_answer.clone();
                     let max_tokens_reached_clone = self.max_tokens_reached.clone();
 
-                    self.llm_selector.lock().expect("Failed to lock llm_selector POISON").process_input(
+                    let _ = self.llm_selector.lock().expect("Failed to lock llm_selector POISON").process_input(
                         prompt,
                         self.ai_context.lock().expect("Failed to lock ai_context POISON").clone(),
                         self.screenshots.clone(),
@@ -452,8 +452,12 @@ impl AssistanceWindow {
                                 egui::Pos2::new(start.x / scale, start.y / scale),
                                 hover_pos,
                             );
-                            ui.painter()
-                                .rect_stroke(rect, 0.0, (2.0, egui::Color32::RED));
+                            ui.painter().rect_stroke(
+                                rect,
+                                0.0,
+                                (2.0, egui::Color32::RED),
+                                egui::StrokeKind::Inside,
+                            );
                         }
                     }
 
@@ -516,22 +520,22 @@ impl AssistanceWindow {
                     let scale_factor = 1.0 / display_scale;
                     let new_width = (image.width() as f32 * scale_factor) as u32;
                     let new_height = (image.height() as f32 * scale_factor) as u32;
-                    let image_resized = image::imageops::resize(
+                    let image_resized = image_24::imageops::resize(
                         &image,
                         new_width,
                         new_height,
-                        image::imageops::FilterType::Lanczos3,
+                        image_24::imageops::FilterType::Lanczos3,
                     );
                     self.screenshots.push((image_resized, start));
                 } else if self.scale != 1.0 {
                     let scale_factor = self.scale;
                     let new_width = (image.width() as f32 / scale_factor) as u32;
                     let new_height = (image.height() as f32 / scale_factor) as u32;
-                    let image_resized = image::imageops::resize(
+                    let image_resized = image_24::imageops::resize(
                         &image,
                         new_width,
                         new_height,
-                        image::imageops::FilterType::Lanczos3,
+                        image_24::imageops::FilterType::Lanczos3,
                     );
                     self.screenshots.push((image_resized, start));
                 } else {

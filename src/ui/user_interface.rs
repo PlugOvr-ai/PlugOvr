@@ -1,18 +1,22 @@
+use crate::ActiveWindow;
 use crate::llm::LLMSelector;
 use crate::ui::assistance_window::AssistanceWindow;
 use crate::ui::main_window::MainWindow;
 use crate::ui::screen_dimensions::get_screen_dimensions;
-use crate::ui::template_editor::create_prompt_templates;
 use crate::ui::template_editor::TemplateEditor;
 use crate::ui::template_editor::TemplateMap;
+use crate::ui::template_editor::create_prompt_templates;
+#[cfg(feature = "computeruse_editor")]
+use crate::usecase_editor::UsecaseEditor;
+#[cfg(feature = "computeruse_record")]
+use crate::usecase_recorder::UseCaseRecorder;
+#[cfg(feature = "computeruse_replay")]
+use crate::usecase_replay::UseCaseReplay;
 use crate::version_check;
-use crate::ActiveWindow;
 use egui_overlay::EguiOverlay;
-use plugovr_types::UserInfo;
 use std::collections::HashMap;
 use tray_icon::{
-    menu::AboutMetadata, menu::MenuEvent, menu::MenuItem, menu::MenuItemKind,
-    menu::PredefinedMenuItem, TrayIcon, TrayIconBuilder, TrayIconEvent,
+    TrayIcon, TrayIconBuilder, menu::AboutMetadata, menu::MenuItem, menu::PredefinedMenuItem,
 };
 
 #[cfg(feature = "three_d")]
@@ -25,12 +29,13 @@ use egui_overlay::egui_render_glow::GlowBackend as DefaultGfxBackend;
 #[cfg(feature = "wgpu")]
 use egui_overlay::egui_render_wgpu::WgpuBackend as DefaultGfxBackend;
 
-use crate::save_bool_config;
+use plugovr_types::UserInfo;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 #[cfg(not(any(feature = "three_d", feature = "wgpu", feature = "glow")))]
 compile_error!("you must enable either `three_d`, `wgpu` or `glow` feature to run this example");
+
 pub async fn run(
     text_entry: Arc<Mutex<bool>>,
     text_entryfield_position: Arc<Mutex<(i32, i32)>>,
@@ -39,16 +44,19 @@ pub async fn run(
 
     active_window: Arc<Mutex<ActiveWindow>>,
     shortcut_window: Arc<Mutex<bool>>,
+    #[cfg(feature = "computeruse_record")] usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
+    #[cfg(feature = "computeruse_replay")] usecase_replay: Arc<Mutex<UseCaseReplay>>,
+    #[cfg(feature = "computeruse_editor")] usecase_editor: Arc<Mutex<UsecaseEditor>>,
 ) {
-    use tracing_subscriber::{fmt, prelude::*, EnvFilter};
-    // if RUST_LOG is not set, we will use the following filters
-    tracing_subscriber::registry()
-        .with(fmt::layer())
-        .with(
-            EnvFilter::try_from_default_env()
-                .unwrap_or(EnvFilter::new("debug,wgpu=warn,naga=warn")),
-        )
-        .init();
+    // use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+    // // if RUST_LOG is not set, we will use the following filters
+    // tracing_subscriber::registry()
+    //     .with(fmt::layer())
+    //     .with(
+    //         EnvFilter::try_from_default_env()
+    //             .unwrap_or(EnvFilter::new("debug,wgpu=warn,naga=warn")),
+    //     )
+    //     .init();
 
     let data = PlugOvr::new(
         text_entry,
@@ -57,6 +65,12 @@ pub async fn run(
         ai_context,
         active_window,
         shortcut_window,
+        #[cfg(feature = "computeruse_record")]
+        usecase_recorder,
+        #[cfg(feature = "computeruse_replay")]
+        usecase_replay,
+        #[cfg(feature = "computeruse_editor")]
+        usecase_editor,
     )
     .await;
     egui_overlay::start(data);
@@ -92,6 +106,12 @@ pub struct PlugOvr {
     menu_update_sender: Arc<Mutex<Option<Sender<MenuUpdate>>>>,
     last_login_state: Option<bool>,
     last_loading_state: Option<bool>,
+    #[cfg(feature = "computeruse_record")]
+    pub usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
+    #[cfg(feature = "computeruse_replay")]
+    pub usecase_replay: Arc<Mutex<UseCaseReplay>>,
+    #[cfg(feature = "computeruse_editor")]
+    pub usecase_editor: Arc<Mutex<UsecaseEditor>>,
 }
 
 impl PlugOvr {
@@ -104,6 +124,9 @@ impl PlugOvr {
 
         active_window: Arc<Mutex<ActiveWindow>>,
         shortcut_window: Arc<Mutex<bool>>,
+        #[cfg(feature = "computeruse_record")] usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
+        #[cfg(feature = "computeruse_replay")] usecase_replay: Arc<Mutex<UseCaseReplay>>,
+        #[cfg(feature = "computeruse_editor")] usecase_editor: Arc<Mutex<UsecaseEditor>>,
     ) -> Self {
         let (screen_width, screen_height) = get_screen_dimensions();
         // Import the user_management module
@@ -153,7 +176,9 @@ impl PlugOvr {
         // Load the Noto Sans font from a file
         fonts.font_data.insert(
             "NotoSans".to_string(),
-            FontData::from_static(include_bytes!("../../assets/NotoSans-Regular.ttf")),
+            Arc::new(FontData::from_static(include_bytes!(
+                "../../assets/NotoSans-Regular.ttf"
+            ))),
         );
 
         // Define which fonts to use for each style
@@ -170,6 +195,11 @@ impl PlugOvr {
             .push("NotoSans".to_owned());
 
         let llm_selector = Arc::new(Mutex::new(LLMSelector::new(user_info.clone())));
+
+        #[cfg(feature = "computeruse_replay")]
+        {
+            usecase_replay.lock().unwrap().llm_selector = Some(llm_selector.clone());
+        }
 
         let assistance_window = AssistanceWindow::new(
             active_window.clone(),
@@ -209,6 +239,8 @@ impl PlugOvr {
                 prompt_templates.clone(),
                 llm_selector.clone(),
                 version_msg.clone(),
+                #[cfg(feature = "computeruse_editor")]
+                usecase_editor.clone(),
             ),
             assistance_window,
             tray_icon: None,
@@ -218,6 +250,12 @@ impl PlugOvr {
             menu_update_sender: Arc::new(Mutex::new(None)),
             last_login_state: None,
             last_loading_state: None,
+            #[cfg(feature = "computeruse_record")]
+            usecase_recorder: usecase_recorder.clone(),
+            #[cfg(feature = "computeruse_replay")]
+            usecase_replay: usecase_replay.clone(),
+            #[cfg(feature = "computeruse_editor")]
+            usecase_editor: usecase_editor.clone(),
         };
 
         plug_ovr.llm_selector.lock().unwrap().load_model().await;
@@ -238,7 +276,7 @@ fn load_icon_from_memory(icon_data: &[u8]) -> tray_icon::Icon {
     };
     tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to create icon")
 }
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Sender, channel};
 #[cfg(target_os = "linux")]
 fn run_once_tray_icon_init(
     tray_icon: &mut Option<TrayIcon>,
@@ -293,8 +331,8 @@ fn run_once_tray_icon_init(
     });
 }
 
-use tray_icon::menu::Menu;
 use tray_icon::Icon;
+use tray_icon::menu::Menu;
 fn create_menu(
     login_menu_item: &MenuItem,
     welcome_menu_item: &MenuItem,
@@ -311,7 +349,8 @@ fn create_menu(
     let icon = load_icon_from_memory(icon_data);
 
     let template_i = MenuItem::new("Template Editor", true, None);
-
+    #[cfg(feature = "computeruse_editor")]
+    let usecase_editor_i = MenuItem::new("Usecase Editor", true, None);
     let llm_selector_i = MenuItem::new("LLM Selector", true, None);
     let quit_i = MenuItem::new("Quit", true, None);
     let about_icon = tray_icon::menu::Icon::from_rgba(icon_data_menu, 32, 32).unwrap();
@@ -324,6 +363,8 @@ fn create_menu(
         &llm_selector_i,
 
         &template_i,
+        #[cfg(feature = "computeruse_editor")]
+        &usecase_editor_i,
         &PredefinedMenuItem::separator(),
         &PredefinedMenuItem::about(
             Some("How to"),
@@ -359,6 +400,8 @@ fn create_menu(
         &llm_selector_i,
 
         &template_i,
+        #[cfg(feature = "computeruse_editor")]
+        &usecase_editor_i,
         &PredefinedMenuItem::separator(),
         &PredefinedMenuItem::about(
             Some("How to"),
@@ -397,6 +440,11 @@ fn create_menu(
     map.insert("Login".to_string(), login_menu_item.id().0.to_string());
     map.insert("Quit".to_string(), quit_i.id().0.to_string());
     map.insert("Updater".to_string(), updater_menu_item.id().0.to_string());
+    #[cfg(feature = "computeruse_editor")]
+    map.insert(
+        "Usecase Editor".to_string(),
+        usecase_editor_i.id().0.to_string(),
+    );
     (tray_menu, icon, map)
 }
 #[cfg(not(target_os = "linux"))]
@@ -582,6 +630,36 @@ impl EguiOverlay for PlugOvr {
             && !self.assistance_window.shortcut_clicked
         {
             self.assistance_window.text_entry_changed = true;
+        }
+
+        #[cfg(feature = "computeruse_record")]
+        {
+            if self.usecase_recorder.lock().unwrap().show {
+                self.usecase_recorder
+                    .lock()
+                    .expect("Failed to lock usecase_recorder POISON")
+                    .show_window(egui_context);
+            }
+        }
+
+        #[cfg(feature = "computeruse_replay")]
+        {
+            if self.usecase_replay.lock().unwrap().show {
+                self.usecase_replay
+                    .lock()
+                    .unwrap()
+                    .visualize_next_step(egui_context);
+                self.usecase_replay
+                    .lock()
+                    .unwrap()
+                    .visualize_planning(egui_context);
+            }
+            if self.usecase_replay.lock().unwrap().show_dialog {
+                self.usecase_replay
+                    .lock()
+                    .unwrap()
+                    .show_dialog(egui_context);
+            }
         }
 
         // here you decide if you want to be passthrough or not.
