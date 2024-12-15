@@ -1,6 +1,10 @@
 # PlugOvr
 
-PlugOvr is a Rust-based application for AI Assistance. With one shortcut you can access PlugOvr from any application. PlugOvr is cross-platform and works on Linux, Windows and MacOS.
+PlugOvr is a Rust-based application for AI Assistance that integrates with your favorite applications. With one shortcut you can access PlugOvr from any application. PlugOvr is cross-platform and works on Linux, Windows and MacOS.
+
+Select the text you want to use, write your own instructions or use your favorite templates.
+
+![shortcuts](https://plugovr.ai/images/shortcuts.jpg)
 
 ## Features
 
@@ -25,7 +29,7 @@ PlugOvr is a Rust-based application for AI Assistance. With one shortcut you can
 Linux:
 ```bash
 sudo apt install --no-install-recommends cmake build-essential libssl3 libdbus-1-3 libglfw3-dev libgtk-3-dev libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxdo-dev
-
+```
 
 
 ## build and run from source
