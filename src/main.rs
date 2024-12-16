@@ -28,16 +28,20 @@ use rdev::listen;
 #[cfg(target_os = "macos")]
 use rdev::{listen, Event};
 
-#[cfg(target_os = "windows")]
-use enigo::{Enigo, Keyboard, Settings};
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+use enigo::{Keyboard, Settings};
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "linux"))]
 fn send_cmd_c() -> Result<(), Box<dyn std::error::Error>> {
-    println!("send_cmd_c");
     let mut enigo = enigo::Enigo::new(&Settings::default())?;
     enigo.key(enigo::Key::Alt, enigo::Direction::Release)?;
     enigo.key(enigo::Key::Control, enigo::Direction::Press)?;
+
+    #[cfg(target_os = "windows")]
     enigo.key(enigo::Key::C, enigo::Direction::Click)?;
+    #[cfg(target_os = "linux")]
+    enigo.key(enigo::Key::Unicode('c'), enigo::Direction::Click)?;
+
     enigo.key(enigo::Key::Control, enigo::Direction::Release)?;
     Ok(())
 }
@@ -287,28 +291,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
-fn get_selected_text() -> Result<String, Box<dyn std::error::Error>> {
-    use x11_clipboard::Clipboard;
-    let clipboard = Clipboard::new()?;
+// #[cfg(target_os = "linux")]
+// fn get_selected_text() -> Result<String, Box<dyn std::error::Error>> {
+//     use x11_clipboard::Clipboard;
+//     let clipboard = Clipboard::new()?;
 
-    // Directly load the selection without clearing first
-    let selection = match clipboard.load(
-        clipboard.getter.atoms.primary,
-        clipboard.getter.atoms.utf8_string,
-        clipboard.getter.atoms.property,
-        std::time::Duration::from_secs(3),
-    ) {
-        Ok(data) if !data.is_empty() => data,
-        _ => return Ok(String::new()), // Return empty string if no selection or error
-    };
+//     // Directly load the selection without clearing first
+//     let selection = match clipboard.load(
+//         clipboard.getter.atoms.primary,
+//         clipboard.getter.atoms.utf8_string,
+//         clipboard.getter.atoms.property,
+//         std::time::Duration::from_secs(3),
+//     ) {
+//         Ok(data) if !data.is_empty() => data,
+//         _ => return Ok(String::new()), // Return empty string if no selection or error
+//     };
 
-    // Convert the selection to a string
-    let selected_text = String::from_utf8(selection)?;
+//     // Convert the selection to a string
+//     let selected_text = String::from_utf8(selection)?;
 
-    Ok(selected_text)
-}
-#[cfg(any(target_os = "windows", target_os = "macos"))]
+//     Ok(selected_text)
+// }
+//#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn get_selected_text() -> Result<String, Box<dyn std::error::Error>> {
     use arboard::Clipboard;
     let mut clipboard = Clipboard::new()?;
