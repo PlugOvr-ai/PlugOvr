@@ -317,7 +317,13 @@ fn get_selected_text() -> Result<String, Box<dyn std::error::Error>> {
     use arboard::Clipboard;
     let mut clipboard = Clipboard::new()?;
     //backup clipboard
-    let clipboard_backup = clipboard.get_text()?;
+    let clipboard_backup = match clipboard.get_text() {
+        Ok(text) => text,
+        Err(e) => {
+            eprintln!("Error getting clipboard text: {:?}", e);
+            String::new()
+        }
+    };
     //clear clipboard
     clipboard.set_text("")?;
     // Send Cmd+C using AppleScript
