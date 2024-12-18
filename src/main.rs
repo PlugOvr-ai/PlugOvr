@@ -153,6 +153,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     std::env::set_var("RUST_LOG", "error");
 
+    #[cfg(feature = "cs")]
+    {
+        tokio::spawn(async {
+            let screen_analyser =
+                plugovr_cs::screen_intelligence::screen_analyser::ScreenAnalyser::new();
+            let _ = screen_analyser.run().await;
+        });
+    }
+
     // tracing_subscriber::fmt::init();
     #[cfg(target_os = "macos")]
     use rdev::set_is_main_thread;

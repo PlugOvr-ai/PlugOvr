@@ -69,7 +69,7 @@ three_d = ["egui_overlay/three_d"]
 wgpu = ["egui_overlay/wgpu"]
 glow = ["egui_overlay/glow"]
 cuda = ["kalosm/cuda"]
-metal = ["kalosm/metal"]
+metal = ["kalosm/metal","plugovr_cs/metal"]
 cs = ["plugovr_cs"]
 
 [dependencies]
