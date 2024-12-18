@@ -142,3 +142,6 @@ active-win-pos-rs = "0.8.3"
 
 [build-dependencies]
 winresource = "0.1.17"
+
+[profile.release]
+lto = true
