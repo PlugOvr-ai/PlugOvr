@@ -5,6 +5,7 @@ use crate::ui::screen_dimensions::get_screen_dimensions;
 use crate::ui::template_editor::create_prompt_templates;
 use crate::ui::template_editor::TemplateEditor;
 use crate::ui::template_editor::TemplateMap;
+use crate::usecase_recorder::UseCaseRecorder;
 use crate::version_check;
 use crate::ActiveWindow;
 use egui_overlay::EguiOverlay;
@@ -39,6 +40,7 @@ pub async fn run(
 
     active_window: Arc<Mutex<ActiveWindow>>,
     shortcut_window: Arc<Mutex<bool>>,
+    usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
 ) {
     use tracing_subscriber::{fmt, prelude::*, EnvFilter};
     // if RUST_LOG is not set, we will use the following filters
@@ -57,6 +59,7 @@ pub async fn run(
         ai_context,
         active_window,
         shortcut_window,
+        usecase_recorder,
     )
     .await;
     egui_overlay::start(data);
@@ -90,6 +93,7 @@ pub struct PlugOvr {
     menu_update_sender: Arc<Mutex<Option<Sender<MenuUpdate>>>>,
     last_login_state: Option<bool>,
     last_loading_state: Option<bool>,
+    pub usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
 }
 
 impl PlugOvr {
@@ -102,6 +106,7 @@ impl PlugOvr {
 
         active_window: Arc<Mutex<ActiveWindow>>,
         shortcut_window: Arc<Mutex<bool>>,
+        usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
     ) -> Self {
         let (screen_width, screen_height) = get_screen_dimensions();
         // Import the user_management module
@@ -214,6 +219,7 @@ impl PlugOvr {
             menu_update_sender: Arc::new(Mutex::new(None)),
             last_login_state: None,
             last_loading_state: None,
+            usecase_recorder: usecase_recorder.clone(),
         };
 
         plug_ovr.llm_selector.lock().unwrap().load_model().await;
@@ -549,6 +555,13 @@ impl EguiOverlay for PlugOvr {
             && !self.assistance_window.shortcut_clicked
         {
             self.assistance_window.text_entry_changed = true;
+        }
+
+        if self.usecase_recorder.lock().unwrap().show {
+            self.usecase_recorder
+                .lock()
+                .expect("Failed to lock usecase_recorder POISON")
+                .show_window(egui_context);
         }
 
         // here you decide if you want to be passthrough or not.

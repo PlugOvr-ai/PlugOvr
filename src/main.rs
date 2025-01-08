@@ -16,12 +16,13 @@ extern crate objc;
 
 mod llm;
 mod ui;
+mod usecase_recorder;
 mod version_check;
 mod window_handling;
 
-use window_handling::ActiveWindow;
-
 use std::error::Error;
+use usecase_recorder::UseCaseRecorder;
+use window_handling::ActiveWindow;
 
 #[cfg(not(target_os = "macos"))]
 use rdev::listen;
@@ -141,6 +142,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let alt_pressed = Arc::new(Mutex::new(false));
     let text_entryfield_position = Arc::new(Mutex::new((0, 0)));
     let ai_context = Arc::new(Mutex::new(String::new()));
+    let usecase_recorder = Arc::new(Mutex::new(UseCaseRecorder::new()));
 
     let mouse_position = Arc::new(Mutex::new((0, 0)));
     let hide_ui = Arc::new(Mutex::new(load_bool_config("hide_ui.txt", false)));
@@ -168,7 +170,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let ai_context = ai_context.clone();
         let active_window = active_window.clone();
         let alt_pressed = alt_pressed.clone();
-
+        let usecase_recorder = usecase_recorder.clone();
         let _ = thread::Builder::new()
             .name("Key Event Thread".to_string())
             .spawn(move || {
@@ -223,7 +225,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                     *hide_ui_guard = !*hide_ui_guard;
                                     save_bool_config("hide_ui.txt", *hide_ui_guard);
                                 }
-
+                                #[cfg(any(target_os = "linux", target_os = "windows"))]
+                                if key == rdev::Key::KeyR
+                                    && *control_pressed.lock().unwrap()
+                                    && *alt_pressed.lock().unwrap()
+                                {
+                                    usecase_recorder.lock().unwrap().show = true;
+                                }
                                 if key == rdev::Key::Escape
                                     && (*text_entry.lock().unwrap()
                                         || *shortcut_window.lock().unwrap())
@@ -284,6 +292,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             ai_context,
             active_window,
             shortcut_window,
+            usecase_recorder,
         )
         .await;
     }
