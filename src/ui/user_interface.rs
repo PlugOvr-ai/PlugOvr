@@ -40,15 +40,15 @@ pub async fn run(
     active_window: Arc<Mutex<ActiveWindow>>,
     shortcut_window: Arc<Mutex<bool>>,
 ) {
-    use tracing_subscriber::{fmt, prelude::*, EnvFilter};
-    // if RUST_LOG is not set, we will use the following filters
-    tracing_subscriber::registry()
-        .with(fmt::layer())
-        .with(
-            EnvFilter::try_from_default_env()
-                .unwrap_or(EnvFilter::new("debug,wgpu=warn,naga=warn")),
-        )
-        .init();
+    // use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+    // // if RUST_LOG is not set, we will use the following filters
+    // tracing_subscriber::registry()
+    //     .with(fmt::layer())
+    //     .with(
+    //         EnvFilter::try_from_default_env()
+    //             .unwrap_or(EnvFilter::new("debug,wgpu=warn,naga=warn")),
+    //     )
+    //     .init();
 
     let data = PlugOvr::new(
         text_entry,

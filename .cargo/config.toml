@@ -1,4 +1,9 @@
 [target.x86_64-unknown-linux-gnu]
-rustflags = [
-    "-C", "link-arg=-std=c++14"
-] 
+rustflags = ["-C", "link-arg=-std=c++14"]
+
+[env]
+CUDA_INCLUDE_DIR = "/usr/include/x86_64-linux-gnu"
+CUDA_LIB_DIR = "/usr/lib/i386-linux-gnu/"
+CUDA_BIN_DIR = "/usr/bin"
+CUDA_ROOT = "/usr/"
+CUDNN_LIB = "/usr/lib/x86_64-linux-gnu/libcudnn.so"
