@@ -89,7 +89,9 @@ bytemuck = { version = "1", default-features = false }
 raw-window-handle = { version = "0.6" }
 three-d = "0.17.0"
 three-d-asset = "0.7.0"
-rdev = { version = "0.5.3", git = "https://github.com/AlexKnauth/rdev.git", rev = "18cd3ac7ddbbce7a4b33e4a5f1dc901418336342" }
+rdev = { version = "0.5.3", git = "https://github.com/AlexKnauth/rdev.git", rev = "18cd3ac7ddbbce7a4b33e4a5f1dc901418336342", features = [
+    "serialize",
+] }
 serde_json = "1.0.120"
 tokio = { version = "1.38.1", features = ["full", "macros"] }
 reqwest = { version = "0.12.7", features = ["blocking", "multipart", "json"] }
@@ -106,14 +108,16 @@ kalosm = { git = "https://github.com/floneum/floneum.git", rev = "90b6af9e9fcdd1
 strum = { version = "0.26.3", features = ["derive"] }
 strum_macros = "0.26.4"
 similar = "2.6.0"
-image = { version = "0.24.9" }
+image = { version = "0.25.5", features = ["png"] }
+image_24 = { package = "image", version = "0.24.9" }
 base64 = { version = "0.22.1" }
 #copypasta = "0.10.1"
 arboard = "3.4.1"
 ollama-rs = { version = "0.2.1", features = ["stream"] }
 regex = "1.11.1"
 tray-icon = "0.19.2"
-
+xcap = "0.2.1"
+uuid = { version = "1.11.0", features = ["v4"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11-clipboard = "0.9.2"
@@ -143,5 +147,5 @@ active-win-pos-rs = "0.8.3"
 [build-dependencies]
 winresource = "0.1.17"
 
-[profile.release]
-lto = true
+#[profile.release]
+#lto = true

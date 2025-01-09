@@ -14,7 +14,7 @@ use plugovr_cs::user_management::get_user;
 
 use egui::{Context, Window};
 
-use image::{ImageBuffer, Rgba};
+use image_24::{ImageBuffer, Rgba};
 use ollama_rs::{
     generation::chat::{request::ChatMessageRequest, ChatMessage, MessageRole},
     generation::images::Image,
@@ -46,7 +46,7 @@ async fn call_ollama(
             img.0
                 .write_to(
                     &mut std::io::Cursor::new(&mut buf),
-                    image::ImageOutputFormat::Png,
+                    image_24::ImageOutputFormat::Png,
                 )
                 .unwrap();
             general_purpose::STANDARD.encode(&buf)

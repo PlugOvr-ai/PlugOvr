@@ -20,14 +20,16 @@ mod usecase_recorder;
 mod version_check;
 mod window_handling;
 
-use std::error::Error;
-use usecase_recorder::UseCaseRecorder;
-use window_handling::ActiveWindow;
-
+use crate::usecase_recorder::EventType;
 #[cfg(not(target_os = "macos"))]
 use rdev::listen;
 #[cfg(target_os = "macos")]
 use rdev::{listen, Event};
+use std::error::Error;
+use std::time::Duration;
+use usecase_recorder::Point;
+use usecase_recorder::UseCaseRecorder;
+use window_handling::ActiveWindow;
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 use enigo::{Keyboard, Settings};
@@ -174,9 +176,66 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let _ = thread::Builder::new()
             .name("Key Event Thread".to_string())
             .spawn(move || {
+                let mut last_mouse_pos = (0, 0);
                 // Add a delay of 2 seconds
                 std::thread::sleep(std::time::Duration::from_secs(2));
                 let callback = move |event: Event| {
+                    if usecase_recorder.lock().unwrap().recording {
+                        if usecase_recorder.lock().unwrap().add_image {
+                            if let Ok(mut recorder) = usecase_recorder.lock() {
+                                if recorder.add_image {
+                                    //let now = SystemTime::now();
+                                    if let Some(add_image_now) = recorder.add_image_now {
+                                        match add_image_now.elapsed() {
+                                            Ok(elapsed) => {
+                                                if elapsed > recorder.add_image_delay.unwrap() {
+                                                    // Take screenshot without holding the lock for too long
+                                                    recorder.add_image = false;
+                                                    recorder.add_image_delay = None;
+                                                    recorder.add_image_now = None;
+                                                    recorder.add_screenshot();
+                                                }
+                                            }
+                                            Err(e) => {
+                                                eprintln!("Error getting elapsed time: {:?}", e);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        match event.event_type {
+                            rdev::EventType::KeyPress(key) => {
+                                let key_str = serde_json::to_string(&key).unwrap();
+                                let key_str = key_str.replace("\"", "");
+                                let key_str = key_str.replace("Key", "");
+                                let key_str = key_str.replace("Dot", ".");
+                                let key_str = key_str.replace("Comma", ",");
+                                let key_str = key_str.replace("Semicolon", ";");
+                                let key_str = key_str.replace("Space", " ");
+                                usecase_recorder
+                                    .lock()
+                                    .unwrap()
+                                    .add_event(EventType::Key(key_str));
+                            }
+                            rdev::EventType::MouseMove { x, y } => {
+                                last_mouse_pos = (x as i32, y as i32);
+                            }
+                            rdev::EventType::ButtonPress(button) => {
+                                if button == rdev::Button::Left {
+                                    usecase_recorder.lock().unwrap().add_event(EventType::Click(
+                                        Point {
+                                            x: last_mouse_pos.0 as f32,
+                                            y: last_mouse_pos.1 as f32,
+                                        },
+                                    ));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
                     match event.event_type {
                         rdev::EventType::KeyPress(key) => {
                             if key == rdev::Key::ControlLeft {
