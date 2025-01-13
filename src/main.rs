@@ -217,7 +217,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                 usecase_recorder
                                     .lock()
                                     .unwrap()
-                                    .add_event(EventType::Key(key_str));
+                                    .add_event(EventType::KeyDown(key_str));
+                            }
+                            rdev::EventType::KeyRelease(key) => {
+                                let key_str = serde_json::to_string(&key).unwrap();
+                                let key_str = key_str.replace("\"", "");
+                                let key_str = key_str.replace("Key", "");
+                                let key_str = key_str.replace("Dot", ".");
+                                let key_str = key_str.replace("Comma", ",");
+                                let key_str = key_str.replace("Semicolon", ";");
+                                let key_str = key_str.replace("Space", " ");
+                                usecase_recorder
+                                    .lock()
+                                    .unwrap()
+                                    .add_event(EventType::KeyUp(key_str));
                             }
                             rdev::EventType::MouseMove { x, y } => {
                                 last_mouse_pos = (x as i32, y as i32);
@@ -229,6 +242,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                             x: last_mouse_pos.0 as f32,
                                             y: last_mouse_pos.1 as f32,
                                         },
+                                        "".to_string(),
                                     ));
                                 }
                             }
