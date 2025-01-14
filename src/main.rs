@@ -17,6 +17,7 @@ extern crate objc;
 mod llm;
 mod ui;
 mod usecase_recorder;
+mod usecase_replay;
 mod version_check;
 mod window_handling;
 
@@ -31,6 +32,7 @@ use usecase_recorder::Point;
 use usecase_recorder::UseCaseRecorder;
 use window_handling::ActiveWindow;
 
+use crate::usecase_replay::UsecaseReplay;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 use enigo::{Keyboard, Settings};
 
@@ -138,6 +140,16 @@ fn handle_text_selection(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let mut usecase_replay = UsecaseReplay::new();
+
+    usecase_replay.load_usecase(
+        "/home/cornelius/PycharmProjects/PlugOvr_usecase_py/data/gmail8_add_desc.json".to_string(),
+    );
+
+    usecase_replay.execute_usecase(
+        "write email with gmail to test@plugovr.ai: subject test; Body Message".to_string(),
+    );
+
     let text_entry = Arc::new(Mutex::new(false));
     let shortcut_window = Arc::new(Mutex::new(false));
     let control_pressed = Arc::new(Mutex::new(false));

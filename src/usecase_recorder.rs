@@ -37,11 +37,11 @@ pub enum EventType {
     Text(String),
 }
 #[derive(Debug, Serialize, Deserialize)]
-struct UseCase {
-    usecase_id: String,
-    usecase_name: String,
-    usecase_instructions: String,
-    usecase_steps: Vec<EventType>,
+pub struct UseCase {
+    pub usecase_id: String,
+    pub usecase_name: String,
+    pub usecase_instructions: String,
+    pub usecase_steps: Vec<EventType>,
 }
 pub fn buffer_screenshots(
     screenshot_buffer1: Arc<Mutex<Option<String>>>,
