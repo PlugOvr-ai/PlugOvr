@@ -6,6 +6,7 @@ use crate::ui::template_editor::create_prompt_templates;
 use crate::ui::template_editor::TemplateEditor;
 use crate::ui::template_editor::TemplateMap;
 use crate::usecase_recorder::UseCaseRecorder;
+use crate::usecase_replay::UseCaseReplay;
 use crate::version_check;
 use crate::ActiveWindow;
 use egui_overlay::EguiOverlay;
@@ -41,6 +42,7 @@ pub async fn run(
     active_window: Arc<Mutex<ActiveWindow>>,
     shortcut_window: Arc<Mutex<bool>>,
     usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
+    usecase_replay: Arc<Mutex<UseCaseReplay>>,
 ) {
     use tracing_subscriber::{fmt, prelude::*, EnvFilter};
     // if RUST_LOG is not set, we will use the following filters
@@ -60,6 +62,7 @@ pub async fn run(
         active_window,
         shortcut_window,
         usecase_recorder,
+        usecase_replay,
     )
     .await;
     egui_overlay::start(data);
@@ -94,6 +97,7 @@ pub struct PlugOvr {
     last_login_state: Option<bool>,
     last_loading_state: Option<bool>,
     pub usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
+    pub usecase_replay: Arc<Mutex<UseCaseReplay>>,
 }
 
 impl PlugOvr {
@@ -107,6 +111,7 @@ impl PlugOvr {
         active_window: Arc<Mutex<ActiveWindow>>,
         shortcut_window: Arc<Mutex<bool>>,
         usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
+        usecase_replay: Arc<Mutex<UseCaseReplay>>,
     ) -> Self {
         let (screen_width, screen_height) = get_screen_dimensions();
         // Import the user_management module
@@ -220,6 +225,7 @@ impl PlugOvr {
             last_login_state: None,
             last_loading_state: None,
             usecase_recorder: usecase_recorder.clone(),
+            usecase_replay: usecase_replay.clone(),
         };
 
         plug_ovr.llm_selector.lock().unwrap().load_model().await;
@@ -562,6 +568,14 @@ impl EguiOverlay for PlugOvr {
                 .lock()
                 .expect("Failed to lock usecase_recorder POISON")
                 .show_window(egui_context);
+        }
+
+        if self.usecase_replay.lock().unwrap().show {
+            self.usecase_replay.lock().unwrap().vizualize_next_step(
+                egui_context,
+                _default_gfx_backend,
+                glfw_backend,
+            );
         }
 
         // here you decide if you want to be passthrough or not.

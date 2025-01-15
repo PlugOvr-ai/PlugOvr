@@ -32,7 +32,7 @@ use usecase_recorder::Point;
 use usecase_recorder::UseCaseRecorder;
 use window_handling::ActiveWindow;
 
-use crate::usecase_replay::UsecaseReplay;
+use crate::usecase_replay::UseCaseReplay;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 use enigo::{Keyboard, Settings};
 
@@ -140,13 +140,13 @@ fn handle_text_selection(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let mut usecase_replay = UsecaseReplay::new();
+    let mut usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
 
-    usecase_replay.load_usecase(
+    usecase_replay.lock().unwrap().load_usecase(
         "/home/cornelius/PycharmProjects/PlugOvr_usecase_py/data/gmail8_add_desc.json".to_string(),
     );
 
-    usecase_replay.execute_usecase(
+    usecase_replay.lock().unwrap().execute_usecase(
         "write email with gmail to test@plugovr.ai: subject test; Body Message".to_string(),
     );
 
@@ -185,6 +185,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let active_window = active_window.clone();
         let alt_pressed = alt_pressed.clone();
         let usecase_recorder = usecase_recorder.clone();
+        let usecase_replay = usecase_replay.clone();
         let _ = thread::Builder::new()
             .name("Key Event Thread".to_string())
             .spawn(move || {
@@ -264,6 +265,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                     match event.event_type {
                         rdev::EventType::KeyPress(key) => {
+                            if key == rdev::Key::F2 {
+                                usecase_replay.lock().unwrap().step();
+                            }
                             if key == rdev::Key::ControlLeft {
                                 *control_pressed.lock().unwrap() = true;
                             }
@@ -378,6 +382,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             active_window,
             shortcut_window,
             usecase_recorder,
+            usecase_replay,
         )
         .await;
     }
