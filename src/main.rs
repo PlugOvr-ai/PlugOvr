@@ -140,15 +140,9 @@ fn handle_text_selection(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let mut usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
-
-    usecase_replay.lock().unwrap().load_usecase(
-        "/home/cornelius/PycharmProjects/PlugOvr_usecase_py/data/gmail8_add_desc.json".to_string(),
-    );
-
-    usecase_replay.lock().unwrap().execute_usecase(
-        "write email with gmail to test@plugovr.ai: subject test; Body Message".to_string(),
-    );
+    // usecase_replay.lock().unwrap().execute_usecase(
+    //     "write email with gmail to test@plugovr.ai: subject test; Body Message".to_string(),
+    // );
 
     let text_entry = Arc::new(Mutex::new(false));
     let shortcut_window = Arc::new(Mutex::new(false));
@@ -166,6 +160,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let active_window = Arc::new(Mutex::new(ActiveWindow(0)));
     #[cfg(target_os = "macos")]
     let active_window = Arc::new(Mutex::new(ActiveWindow(0)));
+
+    let mut usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
+
+    usecase_replay.lock().unwrap().load_usecase(
+        "/home/cornelius/PycharmProjects/PlugOvr_usecase_py/data/gmail8_add_desc.json".to_string(),
+    );
 
     std::env::set_var("RUST_LOG", "error");
 
@@ -267,6 +267,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         rdev::EventType::KeyPress(key) => {
                             if key == rdev::Key::F2 {
                                 usecase_replay.lock().unwrap().step();
+                            }
+                            if key == rdev::Key::F4 {
+                                usecase_replay.lock().unwrap().usecase_actions = None;
+                                usecase_replay.lock().unwrap().show_dialog = true;
                             }
                             if key == rdev::Key::ControlLeft {
                                 *control_pressed.lock().unwrap() = true;

@@ -16,7 +16,7 @@ pub struct MainWindow {
     pub user_info: Arc<Mutex<Option<UserInfo>>>,
     pub is_loading_user_info: Arc<Mutex<bool>>,
     version_msg: Arc<Mutex<String>>,
-    llm_selector: Arc<Mutex<LLMSelector>>,
+    pub llm_selector: Arc<Mutex<LLMSelector>>,
     show_template_editor: Arc<Mutex<bool>>,
     show_llm_selector: Arc<Mutex<bool>>,
     show_login_window: Arc<Mutex<bool>>,

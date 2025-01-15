@@ -1,16 +1,24 @@
 use crate::usecase_recorder::{EventType, UseCase};
 
+use crate::llm::CloudModel;
+use crate::llm::LLMSelector;
+use crate::llm::LLMType;
 use egui_overlay::egui_render_three_d::{
     three_d::{self, ColorMaterial, Gm, Mesh},
     ThreeDBackend,
 };
+use futures;
 use gtk::false_;
 use image::{ImageBuffer, Rgba};
+#[cfg(feature = "cs")]
+use plugovr_cs::cloud_llm::call_aws_lambda;
 use rdev::{simulate, Button};
 use regex;
 use reqwest::multipart;
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Cursor;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
 use xcap::Monitor;
@@ -22,11 +30,13 @@ pub struct UseCaseReplay {
     pub monitor2: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
     pub monitor3: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
     pub show: bool,
+    pub show_dialog: bool,
     pub click_position: Option<(f32, f32)>,
     pub model: Option<Gm<Mesh, ColorMaterial>>,
+    pub llm_selector: Option<Arc<Mutex<LLMSelector>>>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 enum ActionTypes {
     Click(String),
     ClickPosition(f32, f32),
@@ -35,7 +45,8 @@ enum ActionTypes {
     KeyUp(String),
     GrabScreenshot,
 }
-struct UseCaseActions {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UseCaseActions {
     pub instruction: String,
     pub actions: Vec<ActionTypes>,
 }
@@ -49,9 +60,35 @@ impl UseCaseReplay {
             monitor2: None,
             monitor3: None,
             show: false,
+            show_dialog: false,
             click_position: None,
             model: None,
+            llm_selector: None,
         }
+    }
+    pub fn show_dialog(&mut self, egui_context: &egui::Context) {
+        if !self.show_dialog {
+            return;
+        }
+        if self.usecase_actions.is_none() {
+            self.usecase_actions = Some(UseCaseActions {
+                instruction: "".to_string(),
+                actions: vec![],
+            });
+        }
+        egui::Window::new("UseCaseReplay").show(egui_context, |ui| {
+            ui.add(egui::Label::new("Agent Instructions"));
+            ui.add(egui::TextEdit::multiline(
+                &mut self.usecase_actions.as_mut().unwrap().instruction,
+            ));
+
+            if ui.button("Run").clicked() {
+                let instruction = self.usecase_actions.as_mut().unwrap().instruction.clone();
+                self.execute_usecase(instruction);
+                self.show_dialog = false;
+                self.show = true;
+            }
+        });
     }
     pub fn load_usecase(&mut self, filename: String) {
         let file = File::open(filename).unwrap();
@@ -98,9 +135,42 @@ impl UseCaseReplay {
         }
         self.usecase_actions = Some(actions);
     }
+    pub fn update_usecase_actions(&mut self) {
+        let usecase_actions_json = serde_json::to_string(&self.usecase_actions).unwrap();
+        println!("usecase_actions_json: {}", usecase_actions_json);
+        let prompt = format!(
+            "update the json based on the instruction, output only the json: {}",
+            usecase_actions_json
+        );
+        let ai_answer = Arc::new(Mutex::new(String::new()));
+        if let Some(llm_selector) = self.llm_selector.clone() {
+            let model = LLMType::Cloud(CloudModel::AnthropicHaiku).to_string();
+            let user_info = llm_selector
+                .lock()
+                .unwrap()
+                .user_info
+                .lock()
+                .unwrap()
+                .clone();
+            //let screenshots = vec![];
+            #[cfg(feature = "cs")]
+            {
+                let (result, max_tokens_reached) =
+                    call_aws_lambda(user_info.unwrap(), prompt, model, &vec![]);
+                println!("result: {:?}", result);
+                if !max_tokens_reached {
+                    let usecase_actions: UseCaseActions =
+                        serde_json::from_str(&result.to_string()).unwrap();
+                    self.usecase_actions = Some(usecase_actions);
+                    println!("usecase_actions: {:?}", self.usecase_actions);
+                }
+            }
+        }
+    }
     pub fn execute_usecase(&mut self, instruction: String) {
         let index = self.identify_usecase(&instruction);
         self.create_usecase_actions(index, &instruction);
+        self.update_usecase_actions();
         self.show = true;
     }
     pub fn grab_screenshot(&mut self) {
@@ -199,7 +269,9 @@ impl UseCaseReplay {
         }
         self.index += 1;
         if let Some(actions) = &self.usecase_actions {
-            if let ActionTypes::KeyUp(key) = &actions.actions[self.index] {
+            if self.index >= actions.actions.len() {
+                self.show = false;
+            } else if let ActionTypes::KeyUp(key) = &actions.actions[self.index] {
                 self.step();
             }
         }
@@ -512,6 +584,7 @@ fn from_str(key: &str) -> rdev::Key {
         _ => rdev::Key::Unknown(0),
     }
 }
+
 fn key_down(key: &str) {
     simulate(&rdev::EventType::KeyPress(from_str(key))).unwrap();
 

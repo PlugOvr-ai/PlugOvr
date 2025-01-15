@@ -178,6 +178,8 @@ impl PlugOvr {
 
         let llm_selector = Arc::new(Mutex::new(LLMSelector::new(user_info.clone())));
 
+        usecase_replay.lock().unwrap().llm_selector = Some(llm_selector.clone());
+
         let assistance_window = AssistanceWindow::new(
             active_window.clone(),
             text_entry.clone(),
@@ -576,6 +578,12 @@ impl EguiOverlay for PlugOvr {
                 _default_gfx_backend,
                 glfw_backend,
             );
+        }
+        if self.usecase_replay.lock().unwrap().show_dialog {
+            self.usecase_replay
+                .lock()
+                .unwrap()
+                .show_dialog(egui_context);
         }
 
         // here you decide if you want to be passthrough or not.

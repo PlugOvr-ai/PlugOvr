@@ -223,7 +223,7 @@ pub struct LLMSelector {
     show_window: bool,
     download_progress: Arc<Mutex<f32>>,
     download_error: Arc<Mutex<Option<String>>>,
-    user_info: Arc<Mutex<Option<UserInfo>>>,
+    pub user_info: Arc<Mutex<Option<UserInfo>>>,
     ollama: Arc<Mutex<Option<Ollama>>>,
     pub ollama_models: Arc<Mutex<Option<Vec<ollama_rs::models::LocalModel>>>>,
 }
@@ -287,7 +287,7 @@ impl LLMSelector {
         max_tokens_reached: Arc<Mutex<bool>>,
         spinner: Arc<Mutex<bool>>,
         llm_from_template: Option<LLMType>,
-    ) {
+    ) -> Result<tokio::task::JoinHandle<()>, Box<dyn Error + Send + Sync>> {
         let mut llm_type = self.llm_type.clone();
         if let Some(llm_from_template) = llm_from_template {
             llm_type = llm_from_template;
@@ -302,11 +302,14 @@ impl LLMSelector {
         {
             *ai_answer.lock().unwrap() =
                 "Please login to use cloud LLM or switch to local LLM".to_string();
-            return;
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Please login to use cloud LLM or switch to local LLM",
+            )));
         }
         let ollama = self.ollama.clone();
 
-        tokio::task::spawn_blocking(move || {
+        let handle = tokio::task::spawn_blocking(move || {
             *spinner_clone.lock().unwrap() = true;
             let llm_type_clone = llm_type.clone();
             let result: Result<(String, bool), Box<dyn Error + Send + Sync>> = match llm_type {
@@ -390,6 +393,7 @@ impl LLMSelector {
             *max_tokens_reached.lock().unwrap() = result.1;
             *spinner.lock().unwrap() = false;
         });
+        Ok(handle)
     }
 
     pub fn show_selection_window(&mut self, ctx: &Context) {
