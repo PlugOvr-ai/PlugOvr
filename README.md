@@ -17,7 +17,9 @@ Select the text you want to use, write your own instructions or use your favorit
 - Download PlugOvr from [PlugOvr.ai](https://plugovr.ai)
 - Install PlugOvr
 - select the text you want to use
-- press Ctrl + Alt + I (Linux / Windows) or Ctrl + I (MacOS) write your own instructions.
+- press Ctrl + Alt + I  or Ctrl + I  write your own instructions.
+- - Ctrl + I is enough but might conflict with shortcuts from other application e.g. making text italic in gmail.
+
 - or use your favorite templates with Ctrl + Space
 - select Replace, Extend or Ignore
 - accept or reject the AI answer
