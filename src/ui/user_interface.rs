@@ -94,6 +94,7 @@ pub struct PlugOvr {
     pub tray_icon: Option<TrayIcon>,
     pub login_menu_item: MenuItem,
     pub welcome_menu_item: MenuItem,
+    pub updater_menu_item: MenuItem,
     menu_update_sender: Arc<Mutex<Option<Sender<MenuUpdate>>>>,
     last_login_state: Option<bool>,
     last_loading_state: Option<bool>,
@@ -225,6 +226,7 @@ impl PlugOvr {
             tray_icon: None,
             login_menu_item: MenuItem::new("Login", true, None),
             welcome_menu_item: MenuItem::new("Welcome", false, None),
+            updater_menu_item: MenuItem::new("Updater", false, None),
             menu_update_sender: Arc::new(Mutex::new(None)),
             last_login_state: None,
             last_loading_state: None,
@@ -256,6 +258,7 @@ fn run_once_tray_icon_init(
     tray_icon: &mut Option<TrayIcon>,
     login_menu_item: &MenuItem,
     welcome_menu_item: &MenuItem,
+    updater_menu_item: &MenuItem,
     menu_map: Arc<Mutex<Option<HashMap<String, String>>>>,
     menu_update_sender: Arc<Mutex<Option<Sender<MenuUpdate>>>>,
 ) {
@@ -415,10 +418,12 @@ fn run_once_tray_icon_init(
     tray_icon: &mut Option<TrayIcon>,
     login_menu_item: &MenuItem,
     welcome_menu_item: &MenuItem,
+    updater_menu_item: &MenuItem,
     menu_map: Arc<Mutex<Option<HashMap<String, String>>>>,
 ) {
     let hashmap_clone = menu_map.clone();
-    let (tray_menu, icon, map_temp) = create_menu(login_menu_item, welcome_menu_item);
+    let (tray_menu, icon, map_temp) =
+        create_menu(login_menu_item, welcome_menu_item, updater_menu_item);
     *hashmap_clone.lock().unwrap() = Some(map_temp);
 
     *tray_icon = Some(
@@ -454,6 +459,7 @@ impl EguiOverlay for PlugOvr {
                     &mut self.tray_icon,
                     &self.login_menu_item,
                     &self.welcome_menu_item,
+                    &self.updater_menu_item,
                     self.main_window.menu_map.clone(),
                 );
                 #[cfg(target_os = "linux")]
@@ -461,6 +467,7 @@ impl EguiOverlay for PlugOvr {
                     &mut self.tray_icon,
                     &self.login_menu_item,
                     &self.welcome_menu_item,
+                    &self.updater_menu_item,
                     self.main_window.menu_map.clone(),
                     self.menu_update_sender.clone(),
                 );
