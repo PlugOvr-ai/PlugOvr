@@ -176,22 +176,20 @@ jobs:
       #     path: target\release\PlugOvr_${{ needs.bump_version.outputs.new_version }}_x64-setup.exe
 
 
-      # - name: Upload artifact for Linux
-      #   if: startsWith(matrix.os, 'ubuntu')
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: PlugOvr_linux_${{ matrix.os }}
-      #     path: |
-      #         target/release/PlugOvr
-      #         target/debian/*.deb
+      - name: Upload artifact for Linux
+        if: startsWith(matrix.os, 'ubuntu')
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlugOvr_linux_${{ matrix.os }}
+          path: target/debian/*.deb
 
-      # - name: Upload artifact for Windows
-      #   if: startsWith(matrix.os, 'windows')
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: PlugOvr_win
-      #     path: |
-      #       target/release/*.exe
+      - name: Upload artifact for Windows
+        if: startsWith(matrix.os, 'windows')
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlugOvr_win
+          path: |
+            target/release/*.exe
 
       # - name: Upload artifact for MacOS
       #   if: startsWith(matrix.os, 'macos')
