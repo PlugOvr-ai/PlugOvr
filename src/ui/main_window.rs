@@ -8,6 +8,7 @@ use plugovr_cs::login_window::LoginWindow;
 use plugovr_types::UserInfo;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use webbrowser;
 pub struct MainWindow {
     #[cfg(feature = "cs")]
     login_window: LoginWindow,
@@ -68,6 +69,9 @@ impl MainWindow {
                         if id == *menu_map.get("LLM Selector").unwrap_or(&"".to_string()) {
                             println!("LLM Selector");
                             *show_llm_selector.lock().unwrap() = true;
+                        }
+                        if id == *menu_map.get("Updater").unwrap_or(&"".to_string()) {
+                            let _ = webbrowser::open("https://plugovr.ai/download").is_ok();
                         }
                         if id == *menu_map.get("Quit").unwrap_or(&"".to_string()) {
                             println!("Quit");
