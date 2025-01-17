@@ -8,6 +8,7 @@ use plugovr_cs::login_window::LoginWindow;
 use plugovr_types::UserInfo;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use webbrowser;
 pub struct MainWindow {
     #[cfg(feature = "cs")]
     login_window: LoginWindow,
@@ -15,7 +16,8 @@ pub struct MainWindow {
     window_pos_initialized: bool,
     pub user_info: Arc<Mutex<Option<UserInfo>>>,
     pub is_loading_user_info: Arc<Mutex<bool>>,
-    version_msg: Arc<Mutex<String>>,
+    pub version_msg: Arc<Mutex<String>>,
+    pub version_msg_old: Arc<Mutex<String>>,
     llm_selector: Arc<Mutex<LLMSelector>>,
     show_template_editor: Arc<Mutex<bool>>,
     show_llm_selector: Arc<Mutex<bool>>,
@@ -68,6 +70,9 @@ impl MainWindow {
                             println!("LLM Selector");
                             *show_llm_selector.lock().unwrap() = true;
                         }
+                        if id == *menu_map.get("Updater").unwrap_or(&"".to_string()) {
+                            let _ = webbrowser::open("https://plugovr.ai/download").is_ok();
+                        }
                         if id == *menu_map.get("Quit").unwrap_or(&"".to_string()) {
                             println!("Quit");
                             std::process::exit(0);
@@ -85,6 +90,7 @@ impl MainWindow {
             user_info: user_info.clone(),
             is_loading_user_info,
             version_msg,
+            version_msg_old: Arc::new(Mutex::new("".to_string())),
             llm_selector,
             show_template_editor,
             show_llm_selector,

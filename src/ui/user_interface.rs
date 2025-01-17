@@ -65,6 +65,7 @@ pub async fn run(
 enum MenuUpdate {
     UpdateWelcome(String),
     UpdateLogin(String, bool),
+    UpdateUpdater(String, bool),
 }
 pub struct PlugOvr {
     pub text_entry: Arc<Mutex<bool>>,
@@ -87,6 +88,7 @@ pub struct PlugOvr {
     pub tray_icon: Option<TrayIcon>,
     pub login_menu_item: MenuItem,
     pub welcome_menu_item: MenuItem,
+    pub updater_menu_item: MenuItem,
     menu_update_sender: Arc<Mutex<Option<Sender<MenuUpdate>>>>,
     last_login_state: Option<bool>,
     last_loading_state: Option<bool>,
@@ -133,6 +135,7 @@ impl PlugOvr {
             let version_msg = version_msg.clone();
             move || {
                 *version_msg.lock().unwrap() = version_check::update_check().unwrap_or_default();
+                println!("Version message: {}", *version_msg.lock().unwrap());
             }
         };
 
@@ -211,6 +214,7 @@ impl PlugOvr {
             tray_icon: None,
             login_menu_item: MenuItem::new("Login", true, None),
             welcome_menu_item: MenuItem::new("Welcome", false, None),
+            updater_menu_item: MenuItem::new("Updater", false, None),
             menu_update_sender: Arc::new(Mutex::new(None)),
             last_login_state: None,
             last_loading_state: None,
@@ -240,6 +244,7 @@ fn run_once_tray_icon_init(
     tray_icon: &mut Option<TrayIcon>,
     login_menu_item: &MenuItem,
     welcome_menu_item: &MenuItem,
+    updater_menu_item: &MenuItem,
     menu_map: Arc<Mutex<Option<HashMap<String, String>>>>,
     menu_update_sender: Arc<Mutex<Option<Sender<MenuUpdate>>>>,
 ) {
@@ -252,7 +257,9 @@ fn run_once_tray_icon_init(
         gtk::init().unwrap();
         let login_menu_item = MenuItem::new("Login", true, None);
         let welcome_menu_item = MenuItem::new("Welcome", false, None);
-        let (tray_menu, icon, map_temp) = create_menu(&login_menu_item, &welcome_menu_item);
+        let updater_menu_item = MenuItem::new("Updater", false, None);
+        let (tray_menu, icon, map_temp) =
+            create_menu(&login_menu_item, &welcome_menu_item, &updater_menu_item);
         *hashmap_clone.lock().unwrap() = Some(map_temp);
         //  gtk::init().unwrap();
         let tray_icon = Some(
@@ -273,6 +280,10 @@ fn run_once_tray_icon_init(
                         login_menu_item.set_text(text);
                         login_menu_item.set_enabled(enabled);
                     }
+                    MenuUpdate::UpdateUpdater(text, enabled) => {
+                        updater_menu_item.set_text(text);
+                        updater_menu_item.set_enabled(enabled);
+                    }
                 }
             }
             glib::ControlFlow::Continue
@@ -287,6 +298,7 @@ use tray_icon::Icon;
 fn create_menu(
     login_menu_item: &MenuItem,
     welcome_menu_item: &MenuItem,
+    updater_menu_item: &MenuItem,
 ) -> (Menu, Icon, HashMap<String, String>) {
     let tray_menu = Menu::new();
     let icon_data = include_bytes!("../../assets/32x32.png");
@@ -302,7 +314,6 @@ fn create_menu(
 
     let llm_selector_i = MenuItem::new("LLM Selector", true, None);
     let quit_i = MenuItem::new("Quit", true, None);
-
     let about_icon = tray_icon::menu::Icon::from_rgba(icon_data_menu, 32, 32).unwrap();
     #[cfg(feature = "cs")]
     {
@@ -324,6 +335,7 @@ fn create_menu(
                 ..Default::default()
             }),
         ),
+        updater_menu_item,
         &PredefinedMenuItem::about(
             None,
             Some(AboutMetadata {
@@ -358,6 +370,7 @@ fn create_menu(
                 ..Default::default()
             }),
         ),
+        updater_menu_item,
         &PredefinedMenuItem::about(
             None,
             Some(AboutMetadata {
@@ -383,6 +396,7 @@ fn create_menu(
     map.insert("Template Editor".to_string(), template_i.id().0.to_string());
     map.insert("Login".to_string(), login_menu_item.id().0.to_string());
     map.insert("Quit".to_string(), quit_i.id().0.to_string());
+    map.insert("Updater".to_string(), updater_menu_item.id().0.to_string());
     (tray_menu, icon, map)
 }
 #[cfg(not(target_os = "linux"))]
@@ -390,10 +404,12 @@ fn run_once_tray_icon_init(
     tray_icon: &mut Option<TrayIcon>,
     login_menu_item: &MenuItem,
     welcome_menu_item: &MenuItem,
+    updater_menu_item: &MenuItem,
     menu_map: Arc<Mutex<Option<HashMap<String, String>>>>,
 ) {
     let hashmap_clone = menu_map.clone();
-    let (tray_menu, icon, map_temp) = create_menu(login_menu_item, welcome_menu_item);
+    let (tray_menu, icon, map_temp) =
+        create_menu(login_menu_item, welcome_menu_item, updater_menu_item);
     *hashmap_clone.lock().unwrap() = Some(map_temp);
 
     *tray_icon = Some(
@@ -429,6 +445,7 @@ impl EguiOverlay for PlugOvr {
                     &mut self.tray_icon,
                     &self.login_menu_item,
                     &self.welcome_menu_item,
+                    &self.updater_menu_item,
                     self.main_window.menu_map.clone(),
                 );
                 #[cfg(target_os = "linux")]
@@ -436,6 +453,7 @@ impl EguiOverlay for PlugOvr {
                     &mut self.tray_icon,
                     &self.login_menu_item,
                     &self.welcome_menu_item,
+                    &self.updater_menu_item,
                     self.main_window.menu_map.clone(),
                     self.menu_update_sender.clone(),
                 );
@@ -470,7 +488,21 @@ impl EguiOverlay for PlugOvr {
             .is_loading_user_info
             .lock()
             .expect("Failed to lock is_loading_user_info POISON");
+        if self.main_window.version_msg.lock().unwrap().to_string()
+            != *self.main_window.version_msg_old.lock().unwrap()
+        {
+            if let Some(sender) = self.menu_update_sender.lock().unwrap().as_ref() {
+                _ = sender.send(MenuUpdate::UpdateUpdater(
+                    self.main_window.version_msg.lock().unwrap().clone(),
+                    true,
+                ));
+            }
 
+            self.updater_menu_item.set_enabled(true);
+            self.updater_menu_item.set_text(self.main_window.version_msg.lock().unwrap().clone());
+            *self.main_window.version_msg_old.lock().unwrap() =
+                self.main_window.version_msg.lock().unwrap().clone();
+        }
         // Only update if state has changed
         if self.last_login_state != Some(is_logged_in)
             || self.last_loading_state != Some(is_loading)
