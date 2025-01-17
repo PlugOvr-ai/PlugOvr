@@ -501,6 +501,8 @@ impl EguiOverlay for PlugOvr {
                     self.main_window.version_msg.lock().unwrap().clone(),
                     true,
                 ));
+            self.updater_menu_item.set_enabled(true);
+            self.updater_menu_item.set_text("Update");
             *self.main_window.version_msg_old.lock().unwrap() =
                 self.main_window.version_msg.lock().unwrap().clone();
         }
