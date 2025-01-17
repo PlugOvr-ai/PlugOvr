@@ -96,10 +96,9 @@ async fn call_ollama(
         }
         Ok(mut stream) => {
             while let Some(Ok(res)) = stream.next().await {
-                if let Some(assistant_message) = res.message {
-                    response += assistant_message.content.as_str();
-                    *ai_answer.lock().unwrap() = response.clone();
-                }
+                let assistant_message = res.message;
+                response += assistant_message.content.as_str();
+                *ai_answer.lock().unwrap() = response.clone();
             }
             Ok(response)
         }
