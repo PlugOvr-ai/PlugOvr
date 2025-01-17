@@ -157,6 +157,15 @@ impl UseCaseReplay {
             {
                 let (result, max_tokens_reached) =
                     call_aws_lambda(user_info.unwrap(), prompt, model, &vec![]);
+                let result = if let Some(json_start) = result.find('{') {
+                    if let Some(json_end) = result.rfind('}') {
+                        result[json_start..=json_end].to_string()
+                    } else {
+                        result
+                    }
+                } else {
+                    result
+                };
                 println!("result: {:?}", result);
                 if !max_tokens_reached {
                     let usecase_actions: UseCaseActions =

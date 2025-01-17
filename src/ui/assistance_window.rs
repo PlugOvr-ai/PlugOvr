@@ -306,7 +306,7 @@ impl AssistanceWindow {
                     let ai_answer_clone = self.ai_answer.clone();
                     let max_tokens_reached_clone = self.max_tokens_reached.clone();
 
-                    self.llm_selector.lock().expect("Failed to lock llm_selector POISON").process_input(
+                    let _ = self.llm_selector.lock().expect("Failed to lock llm_selector POISON").process_input(
                         prompt,
                         self.ai_context.lock().expect("Failed to lock ai_context POISON").clone(),
                         self.screenshots.clone(),
