@@ -491,18 +491,15 @@ impl EguiOverlay for PlugOvr {
         if self.main_window.version_msg.lock().unwrap().to_string()
             != *self.main_window.version_msg_old.lock().unwrap()
         {
-            _ = self
-                .menu_update_sender
-                .lock()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .send(MenuUpdate::UpdateUpdater(
+            if let Some(sender) = self.menu_update_sender.lock().unwrap().as_ref() {
+                _ = sender.send(MenuUpdate::UpdateUpdater(
                     self.main_window.version_msg.lock().unwrap().clone(),
                     true,
                 ));
+            }
+
             self.updater_menu_item.set_enabled(true);
-            self.updater_menu_item.set_text("Update");
+            self.updater_menu_item.set_text(self.main_window.version_msg.lock().unwrap().clone());
             *self.main_window.version_msg_old.lock().unwrap() =
                 self.main_window.version_msg.lock().unwrap().clone();
         }
