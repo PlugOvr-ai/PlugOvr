@@ -28,7 +28,14 @@ impl PlugOvr {
                 .map(|(key, _)| ui.text_style_height(&egui::TextStyle::Body) * key.len() as f32)
                 .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
                 .unwrap_or(100.0);
-
+            ui.label("AI Context:");
+            ui.label(
+                self.assistance_window
+                    .ai_context
+                    .lock()
+                    .expect("Failed to lock ai_context POISON")
+                    .clone(),
+            );
             for (key, _) in templates
                 .iter()
                 .filter(|(_, (_, _, is_shortcut))| *is_shortcut)
