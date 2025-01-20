@@ -189,7 +189,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let _ = thread::Builder::new()
             .name("Key Event Thread".to_string())
             .spawn(move || {
-                let mut last_mouse_pos = (0, 0);
+                let mut last_mouse_pos = Arc::new(Mutex::new((0, 0)));
                 // Add a delay of 2 seconds
                 std::thread::sleep(std::time::Duration::from_secs(2));
                 let callback = move |event: Event| {
@@ -246,10 +246,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                     .add_event(EventType::KeyUp(key_str));
                             }
                             rdev::EventType::MouseMove { x, y } => {
-                                last_mouse_pos = (x as i32, y as i32);
+                                *last_mouse_pos.lock().unwrap() = (x as i32, y as i32);
                             }
                             rdev::EventType::ButtonPress(button) => {
                                 if button == rdev::Button::Left {
+                                    let last_mouse_pos = last_mouse_pos.lock().unwrap();
                                     usecase_recorder.lock().unwrap().add_event(EventType::Click(
                                         Point {
                                             x: last_mouse_pos.0 as f32,
