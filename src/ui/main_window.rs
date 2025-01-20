@@ -9,6 +9,7 @@ use plugovr_types::UserInfo;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use webbrowser;
+
 pub struct MainWindow {
     #[cfg(feature = "cs")]
     login_window: LoginWindow,

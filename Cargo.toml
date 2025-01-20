@@ -116,10 +116,7 @@ arboard = "3.4.1"
 ollama-rs = { version = "0.2.1", features = ["stream"] }
 regex = "1.11.1"
 tray-icon = "0.19.2"
-webbrowser = "1.0.3"
-xcap = "0.2.1"
-uuid = { version = "1.11.0", features = ["v4"] }
-futures = "0.3.31"
+
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11-clipboard = "0.9.2"
