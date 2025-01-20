@@ -177,7 +177,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
 
     usecase_replay.lock().unwrap().load_usecase(
-        "usecases/gmail8_add_desc.json".to_string(),
+        "usecases/gmail9_add_desc.json".to_string(),
     );
 
     std::env::set_var("RUST_LOG", "error");
@@ -336,6 +336,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                 if key == rdev::Key::KeyR
                                     && *control_pressed.lock().unwrap()
                                     && *alt_pressed.lock().unwrap()
+                                {
+                                    usecase_recorder.lock().unwrap().show = true;
+                                }
+                                #[cfg(target_os = "macos")]
+                                if key == rdev::Key::KeyR
+                                    && *control_pressed.lock().unwrap()
                                 {
                                     usecase_recorder.lock().unwrap().show = true;
                                 }

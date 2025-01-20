@@ -348,9 +348,26 @@ impl UseCaseReplay {
     fn draw_circle(ui: &mut egui::Ui, position: (f32, f32)) {
         #[cfg(target_os = "macos")]
         let position = (position.0, position.1 - 40.0); //adjust for menubar in macos
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
         if position.1 > 1040.0 {
             ui.painter().arrow(
                 egui::pos2(position.0, 1040.0 - 50.0),
+                egui::vec2(0.0, 50.0),
+                egui::Stroke::new(3.0, egui::Color32::from_rgb(255, 0, 0)),
+            );
+        } else {
+            ui.painter().circle_filled(
+                //egui::pos2(position.0, position.1 - 1.0),
+                egui::pos2(position.0, position.1),
+                10.0,
+                egui::Color32::from_rgb(255, 0, 0),
+            );
+        }
+
+        #[cfg(target_os = "macos")]
+        if position.1 > 905.0 {
+            ui.painter().arrow(
+                egui::pos2(position.0, 905.0 - 50.0),
                 egui::vec2(0.0, 50.0),
                 egui::Stroke::new(3.0, egui::Color32::from_rgb(255, 0, 0)),
             );
@@ -548,7 +565,7 @@ fn text_input(text: &str) {
     use crate::send_cmd_v;
 
     arboard::Clipboard::new().unwrap().set_text(text).unwrap();
-    thread::sleep(time::Duration::from_millis(40));
+    thread::sleep(time::Duration::from_millis(100));
     let _ = send_cmd_v();
 }
 

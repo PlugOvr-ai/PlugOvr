@@ -53,6 +53,14 @@ pub fn buffer_screenshots(
     while true {
         for (i, monitor) in monitors.iter().enumerate() {
             let image: ImageBuffer<Rgba<u8>, Vec<u8>> = monitor.capture_image().unwrap();
+            // Resize image to half size
+            #[cfg(target_os = "macos")]
+            let image = image::imageops::resize(
+                &image,
+                image.width() / 2,
+                image.height() / 2,
+                image::imageops::FilterType::Lanczos3
+            );
             let base64 = UseCaseRecorder::image_buffer2base64(image);
             if i == 0 {
                 screenshot_buffer1.lock().unwrap().replace(base64);
