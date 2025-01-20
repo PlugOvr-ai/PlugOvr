@@ -189,7 +189,31 @@ impl UseCaseReplay {
         for (i, monitor) in monitors.iter().enumerate() {
             let image: ImageBuffer<Rgba<u8>, Vec<u8>> = monitor.capture_image().unwrap();
             if i == 0 {
+                //self.monitor1 = Some(image);
+                
+                // Resize image to half size
+                #[cfg(target_os = "macos")]{
+                let resized = image::imageops::resize(
+                    &image,
+                    image.width() / 2,
+                    image.height() / 2,
+                    image::imageops::FilterType::Lanczos3
+                );
+                self.monitor1 = Some(resized);
+                // Save resized image to disk for debugging
+                let debug_path = format!("debug_screenshot.png");
+                if let Err(e) = self.monitor1.as_ref().unwrap().save(&debug_path) {
+                    println!("Failed to save debug screenshot: {}", e);
+                } else {
+                    println!("Saved debug screenshot to {}", debug_path);
+                }
+                println!("monitor1 width: {}", self.monitor1.as_ref().unwrap().width());
+                println!("monitor1 height: {}", self.monitor1.as_ref().unwrap().height());
+                }
+                #[cfg(any(target_os = "linux", target_os = "windows"))]{
                 self.monitor1 = Some(image);
+                }
+                
             } else if i == 1 {
                 self.monitor2 = Some(image);
             } else if i == 2 {
@@ -200,35 +224,60 @@ impl UseCaseReplay {
     pub fn click(&mut self, instruction: String) {
         println!("click: {}", instruction);
         let client = reqwest::blocking::Client::new();
+        
         // Encode the image directly into the buffer
         let mut buffer = Vec::new();
-        self.monitor1
-            .as_ref()
-            .unwrap()
-            .write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
-            .unwrap();
+        match self.monitor1.as_ref() {
+            Some(monitor) => {
+                if let Err(e) = monitor.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png) {
+                    println!("Failed to encode image: {}", e);
+                    return;
+                }
+            }
+            None => {
+                println!("No monitor screenshot available");
+                return;
+            }
+        }
 
-        let image_part = reqwest::blocking::multipart::Part::bytes(buffer)
+        let image_part = match reqwest::blocking::multipart::Part::bytes(buffer)
             .file_name("image.png")
             .mime_str("image/png")
-            .unwrap();
+        {
+            Ok(part) => part,
+            Err(e) => {
+                println!("Failed to create multipart form: {}", e);
+                return;
+            }
+        };
 
-        // Add instruction as a text part
         let instruction_part = reqwest::blocking::multipart::Part::text(instruction);
-
         let form = reqwest::blocking::multipart::Form::new()
             .part("image", image_part)
             .part("prompt", instruction_part);
 
-        // Send the POST request
-        let res = client
+        // Send the POST request with error handling
+        let res = match client
             .post("http://192.168.1.106:5001/process-image")
             .multipart(form)
             .send()
-            .unwrap();
+        {
+            Ok(response) => response,
+            Err(e) => {
+                println!("Failed to send request: {}", e);
+                return;
+            }
+        };
 
         // Parse the response text
-        let response_text = res.text().unwrap();
+        let response_text = match res.text() {
+            Ok(text) => text,
+            Err(e) => {
+                println!("Failed to read response: {}", e);
+                return;
+            }
+        };
+
         if let Some(coords) = parse_coordinates(&response_text) {
             let (x1, y1, x2, y2) = coords;
 
@@ -241,13 +290,22 @@ impl UseCaseReplay {
             let center_y = (y1 + y2) / 2.0 * height;
 
             self.click_position = Some((center_x, center_y));
-            self.usecase_actions.as_mut().unwrap().actions[self.index + 1] =
-                ActionTypes::ClickPosition(center_x, center_y);
+            
+            if let Some(usecase_actions) = &mut self.usecase_actions {
+                if self.index + 1 < usecase_actions.actions.len() {
+                    usecase_actions.actions[self.index + 1] = ActionTypes::ClickPosition(center_x, center_y);
+                }
+            }
 
             println!("Click position: {:?}", self.click_position);
+        } else {
+            println!("Failed to parse coordinates from response");
         }
     }
     pub fn step(&mut self) {
+        if self.usecase_actions.is_none() {
+            return;
+        }
         if self.index >= self.usecase_actions.as_ref().unwrap().actions.len() {
             return;
         }
@@ -288,6 +346,8 @@ impl UseCaseReplay {
     }
 
     fn draw_circle(ui: &mut egui::Ui, position: (f32, f32)) {
+        #[cfg(target_os = "macos")]
+        let position = (position.0, position.1 - 40.0); //adjust for menubar in macos
         if position.1 > 1040.0 {
             ui.painter().arrow(
                 egui::pos2(position.0, 1040.0 - 50.0),
@@ -302,6 +362,8 @@ impl UseCaseReplay {
                 egui::Color32::from_rgb(255, 0, 0),
             );
         }
+
+    
     }
     pub fn vizualize_next_step_3d(
         &mut self,
@@ -468,7 +530,7 @@ fn mouse_click(x: f32, y: f32) {
     simulate(&rdev::EventType::ButtonRelease(rdev::Button::Left)).unwrap();
 }
 
-//#[cfg(not(target_os = "macos"))]
+#[cfg(not(target_os = "macos"))]
 fn text_input(text: &str) {
     arboard::Clipboard::new().unwrap().set_text(text).unwrap();
     thread::sleep(time::Duration::from_millis(40));
@@ -481,6 +543,15 @@ fn text_input(text: &str) {
     thread::sleep(time::Duration::from_millis(40));
     simulate(&rdev::EventType::KeyRelease(rdev::Key::ControlLeft)).unwrap();
 }
+#[cfg(target_os = "macos")]
+fn text_input(text: &str) {
+    use crate::send_cmd_v;
+
+    arboard::Clipboard::new().unwrap().set_text(text).unwrap();
+    thread::sleep(time::Duration::from_millis(40));
+    let _ = send_cmd_v();
+}
+
 fn from_str(key: &str) -> rdev::Key {
     match key {
         "Alt" => rdev::Key::Alt,

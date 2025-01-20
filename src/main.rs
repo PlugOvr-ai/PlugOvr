@@ -63,6 +63,19 @@ fn send_cmd_c() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+fn send_cmd_v() -> Result<(), Box<dyn std::error::Error>> {
+    use std::process::Command;
+
+    Command::new("osascript")
+        .arg("-e")
+        .arg(r#"tell application "System Events" to keystroke "v" using command down"#)
+        .output()?;
+
+    Ok(())
+}
+
+
 fn get_config_file(filename: &str) -> PathBuf {
     let config_dir = dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -164,7 +177,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
 
     usecase_replay.lock().unwrap().load_usecase(
-        "/home/cornelius/PycharmProjects/PlugOvr_usecase_py/data/gmail8_add_desc.json".to_string(),
+        "usecases/gmail8_add_desc.json".to_string(),
     );
 
     std::env::set_var("RUST_LOG", "error");
