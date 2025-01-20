@@ -8,6 +8,7 @@ use egui_overlay::egui_render_three_d::{
     ThreeDBackend,
 };
 use futures;
+#[cfg(target_os = "linux")]
 use gtk::false_;
 use image::{ImageBuffer, Rgba};
 #[cfg(feature = "cs")]
@@ -454,7 +455,7 @@ fn parse_coordinates(response: &str) -> Option<(f32, f32, f32, f32)> {
         None
     }
 }
-#[cfg(not(target_os = "macos"))]
+//#[cfg(not(target_os = "macos"))]
 fn mouse_click(x: f32, y: f32) {
     simulate(&rdev::EventType::MouseMove {
         x: x as f64,
@@ -467,7 +468,7 @@ fn mouse_click(x: f32, y: f32) {
     simulate(&rdev::EventType::ButtonRelease(rdev::Button::Left)).unwrap();
 }
 
-#[cfg(not(target_os = "macos"))]
+//#[cfg(not(target_os = "macos"))]
 fn text_input(text: &str) {
     arboard::Clipboard::new().unwrap().set_text(text).unwrap();
     thread::sleep(time::Duration::from_millis(40));

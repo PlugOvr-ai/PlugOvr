@@ -2,6 +2,7 @@ use egui::Context;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime};
+#[cfg(target_os = "linux")]
 use x11rb::protocol::shape::Op;
 use xcap::Monitor;
 pub struct UseCaseRecorder {
