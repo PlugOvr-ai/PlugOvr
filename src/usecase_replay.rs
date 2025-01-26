@@ -367,7 +367,7 @@ impl UseCaseReplay {
         #[cfg(target_os = "macos")]
         if position.1 > 905.0 {
             ui.painter().arrow(
-                egui::pos2(position.0, 905.0 - 50.0),
+                egui::pos2(position.0, 850.0 - 50.0),
                 egui::vec2(0.0, 50.0),
                 egui::Stroke::new(3.0, egui::Color32::from_rgb(255, 0, 0)),
             );
