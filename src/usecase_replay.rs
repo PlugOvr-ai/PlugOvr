@@ -23,6 +23,12 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
 use xcap::Monitor;
+
+use anyhow;
+use mistralrs::{IsqType, TextMessageRole, VisionLoaderType, VisionMessages, DeviceLayerMapMetadata,Device,
+    VisionModelBuilder, DeviceMapSetting, DeviceMapMetadata, get_auto_device_map_params,ModelSelected, ChatTemplate};
+
+const MODEL_ID: &str = "Qwen/Qwen2-VL-2B-Instruct";
 pub struct UseCaseReplay {
     pub index: usize,
     pub usecase_actions: Option<UseCaseActions>,
@@ -52,7 +58,51 @@ pub struct UseCaseActions {
     pub actions: Vec<ActionTypes>,
 }
 impl UseCaseReplay {
-    pub fn new() -> Self {
+    pub async fn new() -> Self {
+  //      let model_selected = ModelSelected::VisionPlain::default();
+        
+        let device = Device::new_metal(0).unwrap();
+        let model = VisionModelBuilder::new(MODEL_ID, VisionLoaderType::Qwen2VL)
+        //.with_isq(IsqType::Q4K)
+        .with_logging()
+        .with_token_source(mistralrs::TokenSource::None)
+        .from_max_edge(512)
+        .with_dtype(mistralrs::ModelDType::Auto)
+        .with_chat_template("qwen2vl_chat_template.json")
+        
+        //.with_device_mapping(DeviceMapSetting::Map(DeviceMapMetadata::from_num_device_layers(vec![DeviceLayerMapMetadata{ordinal: 1, layers: 28}])))
+        
+        .with_max_num_seqs(512)
+        .build()
+        .await;
+        if let Ok(model) = model {
+            println!("model loaded");
+            let bytes = match reqwest::blocking::get(
+                "https://www.garden-treasures.com/cdn/shop/products/IMG_6245.jpg",
+            ) {
+                Ok(http_resp) => http_resp.bytes().unwrap().to_vec(),
+                Err(e) => panic!("Error: {}", e),
+            };
+            let image = image::load_from_memory(&bytes).unwrap();
+            println!("image loaded");
+            let messages = VisionMessages::new().add_image_message(
+                TextMessageRole::User,
+                "What type of flower is this? Give some fun facts.",
+                image,
+                &model,
+            );
+            if let Ok(messages) = messages {
+                if let Ok(response) = model.send_chat_request(messages).await {
+                    println!("{}", response.choices[0].message.content.as_ref().unwrap());
+                    dbg!(
+                        response.usage.avg_prompt_tok_per_sec,
+                        response.usage.avg_compl_tok_per_sec
+                    );
+                }
+            }
+
+        }
+
         Self {
             index: 0,
             usecase_actions: None,

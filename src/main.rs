@@ -174,7 +174,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(target_os = "macos")]
     let active_window = Arc::new(Mutex::new(ActiveWindow(0)));
 
-    let mut usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
+    let mut usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new().await));
 
     usecase_replay.lock().unwrap().load_usecase(
         "usecases/gmail9_add_desc.json".to_string(),
