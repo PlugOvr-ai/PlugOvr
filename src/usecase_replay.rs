@@ -77,10 +77,10 @@ impl UseCaseReplay {
         .await;
         if let Ok(model) = model {
             println!("model loaded");
-            let bytes = match reqwest::blocking::get(
+            let bytes = match reqwest::get(
                 "https://www.garden-treasures.com/cdn/shop/products/IMG_6245.jpg",
-            ) {
-                Ok(http_resp) => http_resp.bytes().unwrap().to_vec(),
+            ).await {
+                Ok(http_resp) => http_resp.bytes().await.unwrap().to_vec(),
                 Err(e) => panic!("Error: {}", e),
             };
             let image = image::load_from_memory(&bytes).unwrap();
