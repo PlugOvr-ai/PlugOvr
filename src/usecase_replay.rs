@@ -28,7 +28,8 @@ use anyhow;
 use mistralrs::{IsqType, TextMessageRole, VisionLoaderType, VisionMessages, DeviceLayerMapMetadata,Device,
     VisionModelBuilder, DeviceMapSetting, DeviceMapMetadata, get_auto_device_map_params,ModelSelected, ChatTemplate};
 
-const MODEL_ID: &str = "Qwen/Qwen2-VL-2B-Instruct";
+//const MODEL_ID: &str = "Qwen/Qwen2-VL-2B-Instruct";
+const MODEL_ID: &str = "bytedance-research/UI-TARS-2B-SFT";
 pub struct UseCaseReplay {
     pub index: usize,
     pub usecase_actions: Option<UseCaseActions>,
@@ -75,19 +76,44 @@ impl UseCaseReplay {
         .with_max_num_seqs(512)
         .build()
         .await;
+
+        let prompt = r#"You are a GUI agent. You are given a task and your action history, with screenshots. You need to perform the next action to complete the task. 
+
+## Output Format
+```\nThought: ...
+Action: ...\n```
+
+## Action Space
+
+click(start_box='<|box_start|>(x1,y1)<|box_end|>')
+left_double(start_box='<|box_start|>(x1,y1)<|box_end|>')
+right_single(start_box='<|box_start|>(x1,y1)<|box_end|>')
+drag(start_box='<|box_start|>(x1,y1)<|box_end|>', end_box='<|box_start|>(x3,y3)<|box_end|>')
+hotkey(key='')
+type(content='') #If you want to submit your input, use \"\
+\" at the end of `content`.
+scroll(start_box='<|box_start|>(x1,y1)<|box_end|>', direction='down or up or right or left')
+wait() #Sleep for 5s and take a screenshot to check for any changes.
+finished()
+call_user() # Submit the task and call the user when the task is unsolvable, or when you need the user's help.
+
+
+## Note
+- Use English in `Thought` part.
+- Summarize your next action (with its target element) in one sentence in `Thought` part.
+
+## User Instruction
+"#;
+        let instruction = "click on schreiben";
+        let prompt = format!("{} {}", prompt, instruction);
         if let Ok(model) = model {
             println!("model loaded");
-            let bytes = match reqwest::get(
-                "https://www.garden-treasures.com/cdn/shop/products/IMG_6245.jpg",
-            ).await {
-                Ok(http_resp) => http_resp.bytes().await.unwrap().to_vec(),
-                Err(e) => panic!("Error: {}", e),
-            };
-            let image = image::load_from_memory(&bytes).unwrap();
+            let bytes = include_bytes!("../debug_screenshot.png");
+            let image = image::load_from_memory(bytes).unwrap();
             println!("image loaded");
             let messages = VisionMessages::new().add_image_message(
                 TextMessageRole::User,
-                "What type of flower is this? Give some fun facts.",
+                prompt,
                 image,
                 &model,
             );
