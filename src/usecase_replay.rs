@@ -357,33 +357,37 @@ impl UseCaseReplay {
                 }
             };
             println!("response_text: {}", response_text);
-            let json_str = response_text.replace("```json", "").replace("```", "");
+            let json_start = response_text.find("```json").unwrap();
+            let json_end = response_text.rfind("```").unwrap();
+            let json_str = response_text[json_start + 7..json_end].to_string();
             println!("json_str: {}", json_str);
             vec_instructions.lock().unwrap().clear();
 
             #[derive(Deserialize)]
-            struct ActionWrapper {
-                #[serde(flatten)]
-                action: ActionTypes,
-            }
-
-            #[derive(Deserialize)]
-            struct StepWrapper {
-                instruction: String,
-                actions: Vec<ActionWrapper>,
+            struct Step {
+                instruction: Option<String>,
+                actions: Option<Vec<ActionTypes>>,
             }
 
             // Parse the JSON array into a Vec<StepWrapper>
-            if let Ok(steps) = serde_json::from_str::<Vec<StepWrapper>>(&json_str) {
-                // Convert each step with actions into UseCaseActions
-                for step in steps {
-                    vec_instructions.lock().unwrap().push(UseCaseActions {
-                        instruction: step.instruction,
-                        actions: step.actions.into_iter().map(|w| w.action).collect(),
-                    });
+            match serde_json::from_str::<Vec<Step>>(&json_str) {
+                Ok(steps) => {
+                    let mut current_instruction = String::new();
+                    for step in steps {
+                        if let Some(instruction) = step.instruction {
+                            current_instruction = instruction;
+                        }
+                        if let Some(actions) = step.actions {
+                            vec_instructions.lock().unwrap().push(UseCaseActions {
+                                instruction: current_instruction.clone(),
+                                actions,
+                            });
+                        }
+                    }
                 }
-            } else {
-                println!("Failed to parse JSON response: {}", json_str);
+                Err(e) => {
+                    println!("Failed to parse JSON response: {}", e);
+                }
             }
             println!("vec_instructions: {:?}", vec_instructions);
         });
@@ -519,8 +523,17 @@ impl UseCaseReplay {
                 .get_mut(self.index_instruction)
             {
                 if self.index_action + 1 < usecase_actions.actions.len() {
-                    usecase_actions.actions[self.index_action + 1] =
-                        ActionTypes::ClickPosition(center_x, center_y);
+                    if let ActionTypes::ClickPosition(x, y) =
+                        usecase_actions.actions[self.index_action + 1]
+                    {
+                        usecase_actions.actions[self.index_action + 1] =
+                            ActionTypes::ClickPosition(center_x, center_y);
+                    } else {
+                        usecase_actions.actions.insert(
+                            self.index_action + 1,
+                            ActionTypes::ClickPosition(center_x, center_y),
+                        );
+                    }
                 }
             }
 
@@ -721,6 +734,9 @@ impl UseCaseReplay {
         glfw_backend: &mut egui_overlay::egui_window_glfw_passthrough::GlfwBackend,
     ) {
         if self.vec_instructions.lock().unwrap().is_empty() {
+            return;
+        }
+        if self.index_instruction >= self.vec_instructions.lock().unwrap().len() {
             return;
         }
         if self.index_action
