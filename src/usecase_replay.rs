@@ -33,7 +33,8 @@ use xcap::Monitor;
 //const MODEL_ID: &str = "Qwen/Qwen2.5-VL-3B-Instruct";
 
 pub struct UseCaseReplay {
-    pub index: usize,
+    pub index_instruction: usize,
+    pub index_action: usize,
     pub usecase_actions: Arc<Mutex<Option<UseCaseActions>>>,
     pub vec_instructions: Arc<Mutex<Vec<UseCaseActions>>>,
     pub recorded_usecases: Vec<UseCase>,
@@ -48,7 +49,7 @@ pub struct UseCaseReplay {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-enum ActionTypes {
+pub enum ActionTypes {
     Click(String),
     ClickPosition(f32, f32),
     InsertText(String),
@@ -144,7 +145,8 @@ impl UseCaseReplay {
         //         }
 
         Self {
-            index: 0,
+            index_instruction: 0,
+            index_action: 0,
             usecase_actions: Arc::new(Mutex::new(None)),
             vec_instructions: Arc::new(Mutex::new(vec![])),
             recorded_usecases: vec![],
@@ -184,7 +186,8 @@ impl UseCaseReplay {
             ));
 
             if ui.button("Run").clicked() {
-                self.index = 0;
+                self.index_instruction = 0;
+                self.index_action = 0;
                 let instruction = self
                     .usecase_actions
                     .lock()
@@ -509,9 +512,14 @@ impl UseCaseReplay {
 
             self.click_position = Some((center_x, center_y));
 
-            if let Some(usecase_actions) = self.usecase_actions.lock().unwrap().as_mut() {
-                if self.index + 1 < usecase_actions.actions.len() {
-                    usecase_actions.actions[self.index + 1] =
+            if let Some(usecase_actions) = self
+                .vec_instructions
+                .lock()
+                .unwrap()
+                .get_mut(self.index_instruction)
+            {
+                if self.index_action + 1 < usecase_actions.actions.len() {
+                    usecase_actions.actions[self.index_action + 1] =
                         ActionTypes::ClickPosition(center_x, center_y);
                 }
             }
@@ -525,28 +533,28 @@ impl UseCaseReplay {
         if self.usecase_actions.lock().unwrap().is_none() {
             return;
         }
-        if self.index
-            >= self
-                .usecase_actions
-                .lock()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .actions
-                .len()
-        {
-            return;
-        }
-        if self.usecase_actions.lock().unwrap().is_none() {
+        // if self.index
+        //     >= self
+        //         .usecase_actions
+        //         .lock()
+        //         .unwrap()
+        //         .as_ref()
+        //         .unwrap()
+        //         .actions
+        //         .len()
+        // {
+        //     return;
+        // }
+        if self.vec_instructions.lock().unwrap().is_empty() {
             return;
         }
         let action = self
-            .usecase_actions
+            .vec_instructions
             .lock()
             .unwrap()
-            .as_ref()
+            .get(self.index_instruction)
             .unwrap()
-            .actions[self.index]
+            .actions[self.index_action]
             .clone();
         match action {
             ActionTypes::Click(instruction) => {
@@ -570,18 +578,31 @@ impl UseCaseReplay {
             }
             ActionTypes::GrabScreenshot => self.grab_screenshot(),
         }
-        self.index += 1;
-        let mut trigger_step = false;
-        if let Some(actions) = self.usecase_actions.lock().unwrap().as_ref() {
-            if self.index >= actions.actions.len() {
-                self.show = false;
-            } else if let ActionTypes::KeyUp(key) = &actions.actions[self.index] {
-                trigger_step = true;
-            }
+        self.index_action += 1;
+        if self.index_action
+            >= self
+                .vec_instructions
+                .lock()
+                .unwrap()
+                .get(self.index_instruction)
+                .unwrap()
+                .actions
+                .len()
+        {
+            self.index_instruction += 1;
+            self.index_action = 0;
         }
-        if trigger_step {
-            self.step();
-        }
+        // let mut trigger_step = false;
+        // if let Some(actions) = self.usecase_actions.lock().unwrap().as_ref() {
+        //     if self.index >= actions.actions.len() {
+        //         self.show = false;
+        //     } else if let ActionTypes::KeyUp(key) = &actions.actions[self.index] {
+        //         trigger_step = true;
+        //     }
+        // }
+        // if trigger_step {
+        //     self.step();
+        // }
     }
 
     fn draw_circle(ui: &mut egui::Ui, position: (f32, f32)) {
@@ -671,12 +692,14 @@ impl UseCaseReplay {
                     .fixed_pos(egui::pos2(0.0, 0.0))
                     .show(egui_context, |ui| {
                         let action = self
-                            .usecase_actions
+                            .vec_instructions
                             .lock()
                             .unwrap()
-                            .as_mut()
+                            .get(self.index_instruction)
                             .unwrap()
-                            .actions[self.index]
+                            .actions
+                            .get(self.index_action)
+                            .unwrap()
                             .clone();
                         ui.add_sized(
                             egui::Vec2::new(400.0, 30.0),
@@ -697,15 +720,15 @@ impl UseCaseReplay {
         three_d_backend: &mut ThreeDBackend,
         glfw_backend: &mut egui_overlay::egui_window_glfw_passthrough::GlfwBackend,
     ) {
-        if self.usecase_actions.lock().unwrap().is_none() {
+        if self.vec_instructions.lock().unwrap().is_empty() {
             return;
         }
-        if self.index
+        if self.index_action
             >= self
-                .usecase_actions
+                .vec_instructions
                 .lock()
                 .unwrap()
-                .as_ref()
+                .get(self.index_instruction)
                 .unwrap()
                 .actions
                 .len()
@@ -722,12 +745,14 @@ impl UseCaseReplay {
                     .fixed_pos(egui::pos2(0.0, 0.0))
                     .show(egui_context, |ui| {
                         let action = self
-                            .usecase_actions
+                            .vec_instructions
                             .lock()
                             .unwrap()
-                            .as_mut()
+                            .get(self.index_instruction)
                             .unwrap()
-                            .actions[self.index]
+                            .actions
+                            .get(self.index_action)
+                            .unwrap()
                             .clone();
                         ui.add_sized(
                             egui::Vec2::new(400.0, 30.0),
@@ -738,14 +763,16 @@ impl UseCaseReplay {
                         );
                     });
                 if let ActionTypes::ClickPosition(x, y) = self
-                    .usecase_actions
+                    .vec_instructions
                     .lock()
                     .unwrap()
-                    .as_mut()
+                    .get(self.index_instruction)
                     .unwrap()
-                    .actions[self.index]
+                    .actions
+                    .get(self.index_action)
+                    .unwrap()
                 {
-                    Self::draw_circle(ui, (x, y));
+                    Self::draw_circle(ui, (*x, *y));
                 }
             });
     }
