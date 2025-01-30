@@ -35,6 +35,7 @@ use xcap::Monitor;
 pub struct UseCaseReplay {
     pub index: usize,
     pub usecase_actions: Arc<Mutex<Option<UseCaseActions>>>,
+    pub vec_instructions: Arc<Mutex<Vec<UseCaseActions>>>,
     pub recorded_usecases: Vec<UseCase>,
     pub monitor1: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
     pub monitor2: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
@@ -145,6 +146,7 @@ impl UseCaseReplay {
         Self {
             index: 0,
             usecase_actions: Arc::new(Mutex::new(None)),
+            vec_instructions: Arc::new(Mutex::new(vec![])),
             recorded_usecases: vec![],
             monitor1: None,
             monitor2: None,
@@ -292,6 +294,8 @@ impl UseCaseReplay {
         let instruction = instruction.clone();
         self.grab_screenshot();
         let monitor1 = self.monitor1.clone();
+        let usecase_actions = self.usecase_actions.clone();
+        let vec_instructions = self.vec_instructions.clone();
         std::thread::spawn(move || {
             let client = reqwest::blocking::Client::new();
 
@@ -350,10 +354,35 @@ impl UseCaseReplay {
                 }
             };
             println!("response_text: {}", response_text);
-            let usecase_actions: UseCaseActions =
-                serde_json::from_str(&response_text.to_string()).unwrap();
-            // self.usecase_actions = Some(usecase_actions);
-            // println!("usecase_actions: {:?}", self.usecase_actions);
+            let json_str = response_text.replace("```json", "").replace("```", "");
+            println!("json_str: {}", json_str);
+            vec_instructions.lock().unwrap().clear();
+
+            #[derive(Deserialize)]
+            struct ActionWrapper {
+                #[serde(flatten)]
+                action: ActionTypes,
+            }
+
+            #[derive(Deserialize)]
+            struct StepWrapper {
+                instruction: String,
+                actions: Vec<ActionWrapper>,
+            }
+
+            // Parse the JSON array into a Vec<StepWrapper>
+            if let Ok(steps) = serde_json::from_str::<Vec<StepWrapper>>(&json_str) {
+                // Convert each step with actions into UseCaseActions
+                for step in steps {
+                    vec_instructions.lock().unwrap().push(UseCaseActions {
+                        instruction: step.instruction,
+                        actions: step.actions.into_iter().map(|w| w.action).collect(),
+                    });
+                }
+            } else {
+                println!("Failed to parse JSON response: {}", json_str);
+            }
+            println!("vec_instructions: {:?}", vec_instructions);
         });
     }
     pub fn execute_usecase(&mut self, instruction: String) {
