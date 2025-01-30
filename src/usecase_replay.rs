@@ -62,6 +62,24 @@ pub struct UseCaseActions {
     pub instruction: String,
     pub actions: Vec<ActionTypes>,
 }
+
+// Add these struct definitions for the different possible JSON formats
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum StepFormat {
+    SingleStep {
+        instruction: String,
+        actions: Vec<ActionTypes>,
+    },
+    MultiStep(Vec<Step>),
+}
+
+#[derive(Deserialize)]
+struct Step {
+    instruction: Option<String>,
+    actions: Option<Vec<ActionTypes>>,
+}
+
 impl UseCaseReplay {
     pub fn new() -> Self {
         //   //      let model_selected = ModelSelected::VisionPlain::default();
@@ -341,15 +359,17 @@ impl UseCaseReplay {
             println!("json_str: {}", json_str);
             vec_instructions.lock().unwrap().clear();
 
-            #[derive(Deserialize)]
-            struct Step {
-                instruction: Option<String>,
-                actions: Option<Vec<ActionTypes>>,
-            }
-
-            // Parse the JSON array into a Vec<StepWrapper>
-            match serde_json::from_str::<Vec<Step>>(&json_str) {
-                Ok(steps) => {
+            match serde_json::from_str::<StepFormat>(&json_str) {
+                Ok(StepFormat::SingleStep {
+                    instruction,
+                    actions,
+                }) => {
+                    vec_instructions.lock().unwrap().push(UseCaseActions {
+                        instruction,
+                        actions,
+                    });
+                }
+                Ok(StepFormat::MultiStep(steps)) => {
                     let mut current_instruction = String::new();
                     for step in steps {
                         if let Some(instruction) = step.instruction {
@@ -555,6 +575,27 @@ impl UseCaseReplay {
             ActionTypes::ClickPosition(x, y) => {
                 println!("click_position: {:?}", (x, y));
                 mouse_click(x, y);
+                let next_action = self
+                    .vec_instructions
+                    .lock()
+                    .unwrap()
+                    .get(self.index_instruction)
+                    .unwrap()
+                    .actions
+                    .get(self.index_action + 1)
+                    .cloned();
+
+                if let Some(action) = next_action {
+                    if !matches!(action, ActionTypes::GrabScreenshot) {
+                        self.vec_instructions
+                            .lock()
+                            .unwrap()
+                            .get_mut(self.index_instruction)
+                            .unwrap()
+                            .actions
+                            .insert(self.index_action + 1, ActionTypes::GrabScreenshot);
+                    }
+                }
             }
             ActionTypes::InsertText(text) => {
                 println!("insert_text: {}", text);
@@ -570,6 +611,7 @@ impl UseCaseReplay {
             }
             ActionTypes::GrabScreenshot => self.grab_screenshot(),
         }
+
         self.index_action += 1;
         if self.index_action
             >= self
@@ -584,17 +626,23 @@ impl UseCaseReplay {
             self.index_instruction += 1;
             self.index_action = 0;
         }
-        // let mut trigger_step = false;
-        // if let Some(actions) = self.usecase_actions.lock().unwrap().as_ref() {
-        //     if self.index >= actions.actions.len() {
-        //         self.show = false;
-        //     } else if let ActionTypes::KeyUp(key) = &actions.actions[self.index] {
-        //         trigger_step = true;
-        //     }
-        // }
-        // if trigger_step {
-        //     self.step();
-        // }
+
+        let mut trigger_step = false;
+        if let Some(actions) = self
+            .vec_instructions
+            .lock()
+            .unwrap()
+            .get(self.index_instruction)
+        {
+            if self.index_action >= actions.actions.len() {
+                self.show = false;
+            } else if let ActionTypes::KeyUp(key) = &actions.actions[self.index_action] {
+                trigger_step = true;
+            }
+        }
+        if trigger_step {
+            self.step();
+        }
     }
 
     fn draw_circle(ui: &mut egui::Ui, position: (f32, f32)) {
@@ -733,7 +781,7 @@ impl UseCaseReplay {
         egui::Window::new("Overlay")
             .interactable(false)
             .title_bar(false)
-            .default_pos(egui::Pos2::new(1.0, 1.0))
+            .default_pos(egui::Pos2::new(10.0, 1.0))
             .min_size(egui::Vec2::new(1920.0 - 2.0, 1080.0 - 2.0))
             .show(egui_context, |ui| {
                 egui::Area::new(egui::Id::new("overlay"))
@@ -751,10 +799,10 @@ impl UseCaseReplay {
                             .clone();
                         ui.add_sized(
                             egui::Vec2::new(400.0, 30.0),
-                            egui::Label::new(egui::RichText::new(format!(
-                                "PlugOvr: next action: {:?}",
-                                action
-                            ))),
+                            egui::Label::new(
+                                egui::RichText::new(format!("PlugOvr: next action: {:?}", action))
+                                    .background_color(egui::Color32::from_rgb(255, 255, 255)),
+                            ),
                         );
                     });
                 if let ActionTypes::ClickPosition(x, y) = self
