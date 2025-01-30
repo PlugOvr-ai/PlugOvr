@@ -30,6 +30,8 @@ use mistralrs::{IsqType, TextMessageRole, VisionLoaderType, VisionMessages, Devi
 
 //const MODEL_ID: &str = "Qwen/Qwen2-VL-2B-Instruct";
 const MODEL_ID: &str = "bytedance-research/UI-TARS-2B-SFT";
+//const MODEL_ID: &str = "Qwen/Qwen2.5-VL-3B-Instruct";
+
 pub struct UseCaseReplay {
     pub index: usize,
     pub usecase_actions: Option<UseCaseActions>,
@@ -67,13 +69,13 @@ impl UseCaseReplay {
         //.with_isq(IsqType::Q4K)
         .with_logging()
         .with_token_source(mistralrs::TokenSource::None)
-        .from_max_edge(512)
+        .from_max_edge(1024)
         .with_dtype(mistralrs::ModelDType::Auto)
-        .with_chat_template("qwen2vl_chat_template.json")
+        //.with_chat_template("qwen2vl_chat_template.json")
         
         //.with_device_mapping(DeviceMapSetting::Map(DeviceMapMetadata::from_num_device_layers(vec![DeviceLayerMapMetadata{ordinal: 1, layers: 28}])))
         
-        .with_max_num_seqs(512)
+        .with_max_num_seqs(4096)
         .build()
         .await;
 
@@ -104,30 +106,43 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
 
 ## User Instruction
 "#;
-        let instruction = "click on schreiben";
-        let prompt = format!("{} {}", prompt, instruction);
-        if let Ok(model) = model {
-            println!("model loaded");
-            let bytes = include_bytes!("../debug_screenshot.png");
-            let image = image::load_from_memory(bytes).unwrap();
-            println!("image loaded");
-            let messages = VisionMessages::new().add_image_message(
-                TextMessageRole::User,
-                prompt,
-                image,
-                &model,
-            );
-            if let Ok(messages) = messages {
-                if let Ok(response) = model.send_chat_request(messages).await {
-                    println!("{}", response.choices[0].message.content.as_ref().unwrap());
-                    dbg!(
-                        response.usage.avg_prompt_tok_per_sec,
-                        response.usage.avg_compl_tok_per_sec
-                    );
+        let instruction = "click on Chrome";
+        let prompt = format!("{}", instruction);
+        match model {
+            Ok(model) => {
+                println!("model loaded");
+                //let bytes = include_bytes!("../debug_screenshot.png");
+                //let image = image::load_from_memory(&bytes).unwrap();
+                let image = load_image_from_file("debug_screenshot.png").unwrap();
+                let resized = image::imageops::resize(
+                    &image,
+                    1024,
+                    1024,
+                    image::imageops::FilterType::Lanczos3
+                 );
+            
+                println!("image loaded");
+                let messages = VisionMessages::new().add_image_message(
+                    TextMessageRole::User,
+                    prompt,
+                    image::DynamicImage::ImageRgba8(resized),
+                    &model,
+                );
+                if let Ok(messages) = messages {
+                    if let Ok(response) = model.send_chat_request(messages).await {
+                        println!("{}", response.choices[0].message.content.as_ref().unwrap());
+                        dbg!(
+                            response.usage.avg_prompt_tok_per_sec,
+                            response.usage.avg_compl_tok_per_sec
+                        );
+                    }
                 }
             }
-
+            Err(e) => {
+                println!("model not loaded: {}", e);
+            }
         }
+
 
         Self {
             index: 0,
@@ -505,10 +520,6 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
             .title_bar(false)
             .default_pos(egui::Pos2::new(1.0, 1.0))
             .min_size(egui::Vec2::new(1920.0 - 2.0, 1080.0 - 2.0))
-            //.frame(egui::Frame {
-            //     fill: egui::Color32::TRANSPARENT,
-            //     ..Default::default()
-            // })
             .show(egui_context, |ui| {
                 egui::Area::new(egui::Id::new("overlay"))
                     .fixed_pos(egui::pos2(0.0, 0.0))
@@ -539,10 +550,6 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
             .title_bar(false)
             .default_pos(egui::Pos2::new(1.0, 1.0))
             .min_size(egui::Vec2::new(1920.0 - 2.0, 1080.0 - 2.0))
-            //.frame(egui::Frame {
-            //     fill: egui::Color32::TRANSPARENT,
-            //     ..Default::default()
-            // })
             .show(egui_context, |ui| {
                 egui::Area::new(egui::Id::new("overlay"))
                     .fixed_pos(egui::pos2(0.0, 0.0))
@@ -767,4 +774,8 @@ fn key_down(key: &str) {
 fn key_up(key: &str) {
     simulate(&rdev::EventType::KeyRelease(from_str(key))).unwrap();
     thread::sleep(time::Duration::from_millis(40));
+}
+
+fn load_image_from_file(path: &str) -> anyhow::Result<image::DynamicImage> {
+    Ok(image::open(path)?)
 }
