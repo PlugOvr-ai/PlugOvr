@@ -75,7 +75,6 @@ fn send_cmd_v() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-
 fn get_config_file(filename: &str) -> PathBuf {
     let config_dir = dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -174,11 +173,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(target_os = "macos")]
     let active_window = Arc::new(Mutex::new(ActiveWindow(0)));
 
-    let mut usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new().await));
+    let mut usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
 
-    usecase_replay.lock().unwrap().load_usecase(
-        "usecases/gmail9_add_desc.json".to_string(),
-    );
+    usecase_replay
+        .lock()
+        .unwrap()
+        .load_usecase("gmail8_add_desc.json".to_string());
 
     std::env::set_var("RUST_LOG", "error");
 
@@ -283,7 +283,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                 usecase_replay.lock().unwrap().step();
                             }
                             if key == rdev::Key::F4 {
-                                usecase_replay.lock().unwrap().usecase_actions = None;
+                                usecase_replay.lock().unwrap().usecase_actions =
+                                    Arc::new(Mutex::new(None));
                                 usecase_replay.lock().unwrap().show_dialog = true;
                             }
                             if key == rdev::Key::ControlLeft {
@@ -340,9 +341,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                     usecase_recorder.lock().unwrap().show = true;
                                 }
                                 #[cfg(target_os = "macos")]
-                                if key == rdev::Key::KeyR
-                                    && *control_pressed.lock().unwrap()
-                                {
+                                if key == rdev::Key::KeyR && *control_pressed.lock().unwrap() {
                                     usecase_recorder.lock().unwrap().show = true;
                                 }
                                 if key == rdev::Key::Escape

@@ -24,17 +24,17 @@ use std::thread;
 use std::time;
 use xcap::Monitor;
 
-use anyhow;
-use mistralrs::{IsqType, TextMessageRole, VisionLoaderType, VisionMessages, DeviceLayerMapMetadata,Device,
-    VisionModelBuilder, DeviceMapSetting, DeviceMapMetadata, get_auto_device_map_params,ModelSelected, ChatTemplate};
+//use anyhow;
+//use mistralrs::{IsqType, TextMessageRole, VisionLoaderType, VisionMessages, DeviceLayerMapMetadata,Device,
+//    VisionModelBuilder, DeviceMapSetting, DeviceMapMetadata, get_auto_device_map_params,ModelSelected, ChatTemplate};
 
 //const MODEL_ID: &str = "Qwen/Qwen2-VL-2B-Instruct";
-const MODEL_ID: &str = "bytedance-research/UI-TARS-2B-SFT";
+//const MODEL_ID: &str = "bytedance-research/UI-TARS-2B-SFT";
 //const MODEL_ID: &str = "Qwen/Qwen2.5-VL-3B-Instruct";
 
 pub struct UseCaseReplay {
     pub index: usize,
-    pub usecase_actions: Option<UseCaseActions>,
+    pub usecase_actions: Arc<Mutex<Option<UseCaseActions>>>,
     pub recorded_usecases: Vec<UseCase>,
     pub monitor1: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
     pub monitor2: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
@@ -61,92 +61,90 @@ pub struct UseCaseActions {
     pub actions: Vec<ActionTypes>,
 }
 impl UseCaseReplay {
-    pub async fn new() -> Self {
-  //      let model_selected = ModelSelected::VisionPlain::default();
-        
-        let device = Device::new_metal(0).unwrap();
-        let model = VisionModelBuilder::new(MODEL_ID, VisionLoaderType::Qwen2VL)
-        //.with_isq(IsqType::Q4K)
-        .with_logging()
-        .with_token_source(mistralrs::TokenSource::None)
-        .from_max_edge(1024)
-        .with_dtype(mistralrs::ModelDType::Auto)
-        //.with_chat_template("qwen2vl_chat_template.json")
-        
-        //.with_device_mapping(DeviceMapSetting::Map(DeviceMapMetadata::from_num_device_layers(vec![DeviceLayerMapMetadata{ordinal: 1, layers: 28}])))
-        
-        .with_max_num_seqs(4096)
-        .build()
-        .await;
+    pub fn new() -> Self {
+        //   //      let model_selected = ModelSelected::VisionPlain::default();
 
-        let prompt = r#"You are a GUI agent. You are given a task and your action history, with screenshots. You need to perform the next action to complete the task. 
+        //         let device = Device::new_metal(0).unwrap();
+        //         let model = VisionModelBuilder::new(MODEL_ID, VisionLoaderType::Qwen2VL)
+        //         //.with_isq(IsqType::Q4K)
+        //         .with_logging()
+        //         .with_token_source(mistralrs::TokenSource::None)
+        //         .from_max_edge(1024)
+        //         .with_dtype(mistralrs::ModelDType::Auto)
+        //         //.with_chat_template("qwen2vl_chat_template.json")
 
-## Output Format
-```\nThought: ...
-Action: ...\n```
+        //         //.with_device_mapping(DeviceMapSetting::Map(DeviceMapMetadata::from_num_device_layers(vec![DeviceLayerMapMetadata{ordinal: 1, layers: 28}])))
 
-## Action Space
+        //         .with_max_num_seqs(4096)
+        //         .build()
+        //         .await;
 
-click(start_box='<|box_start|>(x1,y1)<|box_end|>')
-left_double(start_box='<|box_start|>(x1,y1)<|box_end|>')
-right_single(start_box='<|box_start|>(x1,y1)<|box_end|>')
-drag(start_box='<|box_start|>(x1,y1)<|box_end|>', end_box='<|box_start|>(x3,y3)<|box_end|>')
-hotkey(key='')
-type(content='') #If you want to submit your input, use \"\
-\" at the end of `content`.
-scroll(start_box='<|box_start|>(x1,y1)<|box_end|>', direction='down or up or right or left')
-wait() #Sleep for 5s and take a screenshot to check for any changes.
-finished()
-call_user() # Submit the task and call the user when the task is unsolvable, or when you need the user's help.
+        //         let prompt = r#"You are a GUI agent. You are given a task and your action history, with screenshots. You need to perform the next action to complete the task.
 
+        // ## Output Format
+        // ```\nThought: ...
+        // Action: ...\n```
 
-## Note
-- Use English in `Thought` part.
-- Summarize your next action (with its target element) in one sentence in `Thought` part.
+        // ## Action Space
 
-## User Instruction
-"#;
-        let instruction = "click on Chrome";
-        let prompt = format!("{}", instruction);
-        match model {
-            Ok(model) => {
-                println!("model loaded");
-                //let bytes = include_bytes!("../debug_screenshot.png");
-                //let image = image::load_from_memory(&bytes).unwrap();
-                let image = load_image_from_file("debug_screenshot.png").unwrap();
-                let resized = image::imageops::resize(
-                    &image,
-                    1024,
-                    1024,
-                    image::imageops::FilterType::Lanczos3
-                 );
-            
-                println!("image loaded");
-                let messages = VisionMessages::new().add_image_message(
-                    TextMessageRole::User,
-                    prompt,
-                    image::DynamicImage::ImageRgba8(resized),
-                    &model,
-                );
-                if let Ok(messages) = messages {
-                    if let Ok(response) = model.send_chat_request(messages).await {
-                        println!("{}", response.choices[0].message.content.as_ref().unwrap());
-                        dbg!(
-                            response.usage.avg_prompt_tok_per_sec,
-                            response.usage.avg_compl_tok_per_sec
-                        );
-                    }
-                }
-            }
-            Err(e) => {
-                println!("model not loaded: {}", e);
-            }
-        }
+        // click(start_box='<|box_start|>(x1,y1)<|box_end|>')
+        // left_double(start_box='<|box_start|>(x1,y1)<|box_end|>')
+        // right_single(start_box='<|box_start|>(x1,y1)<|box_end|>')
+        // drag(start_box='<|box_start|>(x1,y1)<|box_end|>', end_box='<|box_start|>(x3,y3)<|box_end|>')
+        // hotkey(key='')
+        // type(content='') #If you want to submit your input, use \"\
+        // \" at the end of `content`.
+        // scroll(start_box='<|box_start|>(x1,y1)<|box_end|>', direction='down or up or right or left')
+        // wait() #Sleep for 5s and take a screenshot to check for any changes.
+        // finished()
+        // call_user() # Submit the task and call the user when the task is unsolvable, or when you need the user's help.
 
+        // ## Note
+        // - Use English in `Thought` part.
+        // - Summarize your next action (with its target element) in one sentence in `Thought` part.
+
+        // ## User Instruction
+        // "#;
+        //         let instruction = "click on Chrome";
+        //         let prompt = format!("{}", instruction);
+        //         match model {
+        //             Ok(model) => {
+        //                 println!("model loaded");
+        //                 //let bytes = include_bytes!("../debug_screenshot.png");
+        //                 //let image = image::load_from_memory(&bytes).unwrap();
+        //                 let image = load_image_from_file("debug_screenshot.png").unwrap();
+        //                 let resized = image::imageops::resize(
+        //                     &image,
+        //                     1024,
+        //                     1024,
+        //                     image::imageops::FilterType::Lanczos3
+        //                  );
+
+        //                 println!("image loaded");
+        //                 let messages = VisionMessages::new().add_image_message(
+        //                     TextMessageRole::User,
+        //                     prompt,
+        //                     image::DynamicImage::ImageRgba8(resized),
+        //                     &model,
+        //                 );
+        //                 if let Ok(messages) = messages {
+        //                     if let Ok(response) = model.send_chat_request(messages).await {
+        //                         println!("{}", response.choices[0].message.content.as_ref().unwrap());
+        //                         dbg!(
+        //                             response.usage.avg_prompt_tok_per_sec,
+        //                             response.usage.avg_compl_tok_per_sec
+        //                         );
+        //                     }
+        //                 }
+        //             }
+        //             Err(e) => {
+        //                 println!("model not loaded: {}", e);
+        //             }
+        //         }
 
         Self {
             index: 0,
-            usecase_actions: None,
+            usecase_actions: Arc::new(Mutex::new(None)),
             recorded_usecases: vec![],
             monitor1: None,
             monitor2: None,
@@ -162,20 +160,38 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
         if !self.show_dialog {
             return;
         }
-        if self.usecase_actions.is_none() {
-            self.usecase_actions = Some(UseCaseActions {
-                instruction: "".to_string(),
-                actions: vec![],
-            });
+        if self.usecase_actions.lock().unwrap().is_none() {
+            self.usecase_actions
+                .lock()
+                .unwrap()
+                .replace(UseCaseActions {
+                    instruction: "".to_string(),
+                    actions: vec![],
+                });
         }
         egui::Window::new("UseCaseReplay").show(egui_context, |ui| {
             ui.add(egui::Label::new("Agent Instructions"));
             ui.add(egui::TextEdit::multiline(
-                &mut self.usecase_actions.as_mut().unwrap().instruction,
+                &mut self
+                    .usecase_actions
+                    .lock()
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+                    .instruction,
             ));
 
             if ui.button("Run").clicked() {
-                let instruction = self.usecase_actions.as_mut().unwrap().instruction.clone();
+                self.index = 0;
+                let instruction = self
+                    .usecase_actions
+                    .lock()
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+                    .instruction
+                    .clone();
+
                 self.execute_usecase(instruction);
                 self.show_dialog = false;
                 self.show = true;
@@ -225,10 +241,11 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
                 _ => {}
             }
         }
-        self.usecase_actions = Some(actions);
+        self.usecase_actions.lock().unwrap().replace(actions);
     }
     pub fn update_usecase_actions(&mut self) {
-        let usecase_actions_json = serde_json::to_string(&self.usecase_actions).unwrap();
+        let usecase_actions_json =
+            serde_json::to_string(&self.usecase_actions.lock().unwrap().as_ref().unwrap()).unwrap();
         println!("usecase_actions_json: {}", usecase_actions_json);
         let prompt = format!(
             "update the json based on the instruction, output only the json: {}",
@@ -262,17 +279,89 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
                 if !max_tokens_reached {
                     let usecase_actions: UseCaseActions =
                         serde_json::from_str(&result.to_string()).unwrap();
-                    self.usecase_actions = Some(usecase_actions);
+                    self.usecase_actions
+                        .lock()
+                        .unwrap()
+                        .replace(usecase_actions);
                     println!("usecase_actions: {:?}", self.usecase_actions);
                 }
             }
         }
     }
+    pub fn generate_usecase_actions(&mut self, instruction: &String) {
+        let instruction = instruction.clone();
+        self.grab_screenshot();
+        let monitor1 = self.monitor1.clone();
+        std::thread::spawn(move || {
+            let client = reqwest::blocking::Client::new();
+
+            // Encode the image directly into the buffer
+            let mut buffer = Vec::new();
+            match monitor1.as_ref() {
+                Some(monitor) => {
+                    if let Err(e) =
+                        monitor.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
+                    {
+                        println!("Failed to encode image: {}", e);
+                        return;
+                    }
+                }
+                None => {
+                    println!("No monitor screenshot available");
+                    return;
+                }
+            }
+
+            let image_part = match reqwest::blocking::multipart::Part::bytes(buffer)
+                .file_name("image.png")
+                .mime_str("image/png")
+            {
+                Ok(part) => part,
+                Err(e) => {
+                    println!("Failed to create multipart form: {}", e);
+                    return;
+                }
+            };
+
+            let instruction_part = reqwest::blocking::multipart::Part::text(instruction.clone());
+            let form = reqwest::blocking::multipart::Form::new()
+                .part("image", image_part)
+                .part("prompt", instruction_part);
+
+            // Send the POST request with error handling
+            let res = match client
+                .post("http://192.168.1.106:5001/get_execution_plan")
+                .multipart(form)
+                .send()
+            {
+                Ok(response) => response,
+                Err(e) => {
+                    println!("Failed to send request: {}", e);
+                    return;
+                }
+            };
+
+            // Parse the response text
+            let response_text = match res.text() {
+                Ok(text) => text,
+                Err(e) => {
+                    println!("Failed to read response: {}", e);
+                    return;
+                }
+            };
+            println!("response_text: {}", response_text);
+            let usecase_actions: UseCaseActions =
+                serde_json::from_str(&response_text.to_string()).unwrap();
+            // self.usecase_actions = Some(usecase_actions);
+            // println!("usecase_actions: {:?}", self.usecase_actions);
+        });
+    }
     pub fn execute_usecase(&mut self, instruction: String) {
-        let index = self.identify_usecase(&instruction);
-        self.create_usecase_actions(index, &instruction);
-        self.update_usecase_actions();
-        self.show = true;
+        //let index = self.identify_usecase(&instruction);
+        //self.create_usecase_actions(index, &instruction);
+        self.generate_usecase_actions(&instruction);
+        // self.update_usecase_actions();
+        //self.show = true;
     }
     pub fn grab_screenshot(&mut self) {
         println!("grab_screenshot");
@@ -281,30 +370,37 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
             let image: ImageBuffer<Rgba<u8>, Vec<u8>> = monitor.capture_image().unwrap();
             if i == 0 {
                 //self.monitor1 = Some(image);
-                
+
                 // Resize image to half size
-                #[cfg(target_os = "macos")]{
-                let resized = image::imageops::resize(
-                    &image,
-                    image.width() / 2,
-                    image.height() / 2,
-                    image::imageops::FilterType::Lanczos3
-                );
-                self.monitor1 = Some(resized);
-                // Save resized image to disk for debugging
-                let debug_path = format!("debug_screenshot.png");
-                if let Err(e) = self.monitor1.as_ref().unwrap().save(&debug_path) {
-                    println!("Failed to save debug screenshot: {}", e);
-                } else {
-                    println!("Saved debug screenshot to {}", debug_path);
+                #[cfg(target_os = "macos")]
+                {
+                    let resized = image::imageops::resize(
+                        &image,
+                        image.width() / 2,
+                        image.height() / 2,
+                        image::imageops::FilterType::Lanczos3,
+                    );
+                    self.monitor1 = Some(resized);
+                    // Save resized image to disk for debugging
+                    let debug_path = format!("debug_screenshot.png");
+                    if let Err(e) = self.monitor1.as_ref().unwrap().save(&debug_path) {
+                        println!("Failed to save debug screenshot: {}", e);
+                    } else {
+                        println!("Saved debug screenshot to {}", debug_path);
+                    }
+                    println!(
+                        "monitor1 width: {}",
+                        self.monitor1.as_ref().unwrap().width()
+                    );
+                    println!(
+                        "monitor1 height: {}",
+                        self.monitor1.as_ref().unwrap().height()
+                    );
                 }
-                println!("monitor1 width: {}", self.monitor1.as_ref().unwrap().width());
-                println!("monitor1 height: {}", self.monitor1.as_ref().unwrap().height());
+                #[cfg(any(target_os = "linux", target_os = "windows"))]
+                {
+                    self.monitor1 = Some(image);
                 }
-                #[cfg(any(target_os = "linux", target_os = "windows"))]{
-                self.monitor1 = Some(image);
-                }
-                
             } else if i == 1 {
                 self.monitor2 = Some(image);
             } else if i == 2 {
@@ -315,12 +411,14 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
     pub fn click(&mut self, instruction: String) {
         println!("click: {}", instruction);
         let client = reqwest::blocking::Client::new();
-        
+
         // Encode the image directly into the buffer
         let mut buffer = Vec::new();
         match self.monitor1.as_ref() {
             Some(monitor) => {
-                if let Err(e) = monitor.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png) {
+                if let Err(e) =
+                    monitor.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
+                {
                     println!("Failed to encode image: {}", e);
                     return;
                 }
@@ -349,7 +447,7 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
 
         // Send the POST request with error handling
         let res = match client
-            .post("http://192.168.1.106:5001/process-image")
+            .post("http://192.168.1.106:5001/get_location")
             .multipart(form)
             .send()
         {
@@ -377,14 +475,15 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
             let height = self.monitor1.as_ref().unwrap().height() as f32;
 
             // Calculate center point and scale coordinates
-            let center_x = (x1 + x2) / 2.0 * width;
-            let center_y = (y1 + y2) / 2.0 * height;
+            let center_x = (x1 + x2) / 2.0;
+            let center_y = (y1 + y2) / 2.0;
 
             self.click_position = Some((center_x, center_y));
-            
-            if let Some(usecase_actions) = &mut self.usecase_actions {
+
+            if let Some(usecase_actions) = self.usecase_actions.lock().unwrap().as_mut() {
                 if self.index + 1 < usecase_actions.actions.len() {
-                    usecase_actions.actions[self.index + 1] = ActionTypes::ClickPosition(center_x, center_y);
+                    usecase_actions.actions[self.index + 1] =
+                        ActionTypes::ClickPosition(center_x, center_y);
                 }
             }
 
@@ -394,16 +493,32 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
         }
     }
     pub fn step(&mut self) {
-        if self.usecase_actions.is_none() {
+        if self.usecase_actions.lock().unwrap().is_none() {
             return;
         }
-        if self.index >= self.usecase_actions.as_ref().unwrap().actions.len() {
+        if self.index
+            >= self
+                .usecase_actions
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .actions
+                .len()
+        {
             return;
         }
-        if self.usecase_actions.is_none() {
+        if self.usecase_actions.lock().unwrap().is_none() {
             return;
         }
-        let action = self.usecase_actions.as_ref().unwrap().actions[self.index].clone();
+        let action = self
+            .usecase_actions
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .actions[self.index]
+            .clone();
         match action {
             ActionTypes::Click(instruction) => {
                 self.click(instruction);
@@ -427,12 +542,16 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
             ActionTypes::GrabScreenshot => self.grab_screenshot(),
         }
         self.index += 1;
-        if let Some(actions) = &self.usecase_actions {
+        let mut trigger_step = false;
+        if let Some(actions) = self.usecase_actions.lock().unwrap().as_ref() {
             if self.index >= actions.actions.len() {
                 self.show = false;
             } else if let ActionTypes::KeyUp(key) = &actions.actions[self.index] {
-                self.step();
+                trigger_step = true;
             }
+        }
+        if trigger_step {
+            self.step();
         }
     }
 
@@ -470,8 +589,6 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
                 egui::Color32::from_rgb(255, 0, 0),
             );
         }
-
-    
     }
     pub fn vizualize_next_step_3d(
         &mut self,
@@ -524,8 +641,14 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
                 egui::Area::new(egui::Id::new("overlay"))
                     .fixed_pos(egui::pos2(0.0, 0.0))
                     .show(egui_context, |ui| {
-                        let action =
-                            self.usecase_actions.as_mut().unwrap().actions[self.index].clone();
+                        let action = self
+                            .usecase_actions
+                            .lock()
+                            .unwrap()
+                            .as_mut()
+                            .unwrap()
+                            .actions[self.index]
+                            .clone();
                         ui.add_sized(
                             egui::Vec2::new(400.0, 30.0),
                             egui::Label::new(egui::RichText::new(format!(
@@ -545,6 +668,21 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
         three_d_backend: &mut ThreeDBackend,
         glfw_backend: &mut egui_overlay::egui_window_glfw_passthrough::GlfwBackend,
     ) {
+        if self.usecase_actions.lock().unwrap().is_none() {
+            return;
+        }
+        if self.index
+            >= self
+                .usecase_actions
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .actions
+                .len()
+        {
+            return;
+        }
         egui::Window::new("Overlay")
             .interactable(false)
             .title_bar(false)
@@ -554,8 +692,14 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
                 egui::Area::new(egui::Id::new("overlay"))
                     .fixed_pos(egui::pos2(0.0, 0.0))
                     .show(egui_context, |ui| {
-                        let action =
-                            self.usecase_actions.as_mut().unwrap().actions[self.index].clone();
+                        let action = self
+                            .usecase_actions
+                            .lock()
+                            .unwrap()
+                            .as_mut()
+                            .unwrap()
+                            .actions[self.index]
+                            .clone();
                         ui.add_sized(
                             egui::Vec2::new(400.0, 30.0),
                             egui::Label::new(egui::RichText::new(format!(
@@ -564,8 +708,13 @@ call_user() # Submit the task and call the user when the task is unsolvable, or 
                             ))),
                         );
                     });
-                if let ActionTypes::ClickPosition(x, y) =
-                    self.usecase_actions.as_mut().unwrap().actions[self.index]
+                if let ActionTypes::ClickPosition(x, y) = self
+                    .usecase_actions
+                    .lock()
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+                    .actions[self.index]
                 {
                     Self::draw_circle(ui, (x, y));
                 }
@@ -604,7 +753,7 @@ fn create_triangle_model(three_d_context: &three_d::Context) -> Gm<Mesh, ColorMa
     model
 }
 // Add this helper function
-fn parse_coordinates(response: &str) -> Option<(f32, f32, f32, f32)> {
+fn parse_coordinates_florence2(response: &str) -> Option<(f32, f32, f32, f32)> {
     let re = regex::Regex::new(r"<loc_(\d+)>").unwrap();
     let coords: Vec<f32> = re
         .captures_iter(response)
@@ -612,6 +761,16 @@ fn parse_coordinates(response: &str) -> Option<(f32, f32, f32, f32)> {
         .collect();
 
     if coords.len() == 4 {
+        Some((coords[0], coords[1], coords[2], coords[3]))
+    } else {
+        None
+    }
+}
+
+fn parse_coordinates(response: &str) -> Option<(f32, f32, f32, f32)> {
+    let re = regex::Regex::new(r"\[\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\]").unwrap();
+    if let Some(caps) = re.captures(response) {
+        let coords: Vec<f32> = (1..=4).map(|i| caps[i].parse::<f32>().unwrap()).collect();
         Some((coords[0], coords[1], coords[2], coords[3]))
     } else {
         None
@@ -776,6 +935,6 @@ fn key_up(key: &str) {
     thread::sleep(time::Duration::from_millis(40));
 }
 
-fn load_image_from_file(path: &str) -> anyhow::Result<image::DynamicImage> {
-    Ok(image::open(path)?)
-}
+// fn load_image_from_file(path: &str) -> anyhow::Result<image::DynamicImage> {
+//     Ok(image::open(path)?)
+// }
