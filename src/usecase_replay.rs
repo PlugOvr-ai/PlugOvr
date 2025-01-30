@@ -35,7 +35,6 @@ use xcap::Monitor;
 pub struct UseCaseReplay {
     pub index_instruction: usize,
     pub index_action: usize,
-    pub usecase_actions: Arc<Mutex<Option<UseCaseActions>>>,
     pub vec_instructions: Arc<Mutex<Vec<UseCaseActions>>>,
     pub recorded_usecases: Vec<UseCase>,
     pub monitor1: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
@@ -46,6 +45,7 @@ pub struct UseCaseReplay {
     pub click_position: Option<(f32, f32)>,
     pub model: Option<Gm<Mesh, ColorMaterial>>,
     pub llm_selector: Option<Arc<Mutex<LLMSelector>>>,
+    instruction_dialog: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -147,7 +147,6 @@ impl UseCaseReplay {
         Self {
             index_instruction: 0,
             index_action: 0,
-            usecase_actions: Arc::new(Mutex::new(None)),
             vec_instructions: Arc::new(Mutex::new(vec![])),
             recorded_usecases: vec![],
             monitor1: None,
@@ -158,44 +157,23 @@ impl UseCaseReplay {
             click_position: None,
             model: None,
             llm_selector: None,
+            instruction_dialog: "".to_string(),
         }
     }
     pub fn show_dialog(&mut self, egui_context: &egui::Context) {
         if !self.show_dialog {
             return;
         }
-        if self.usecase_actions.lock().unwrap().is_none() {
-            self.usecase_actions
-                .lock()
-                .unwrap()
-                .replace(UseCaseActions {
-                    instruction: "".to_string(),
-                    actions: vec![],
-                });
-        }
+
         egui::Window::new("UseCaseReplay").show(egui_context, |ui| {
             ui.add(egui::Label::new("Agent Instructions"));
-            ui.add(egui::TextEdit::multiline(
-                &mut self
-                    .usecase_actions
-                    .lock()
-                    .unwrap()
-                    .as_mut()
-                    .unwrap()
-                    .instruction,
-            ));
+            ui.add(egui::TextEdit::multiline(&mut self.instruction_dialog));
 
             if ui.button("Run").clicked() {
                 self.index_instruction = 0;
                 self.index_action = 0;
-                let instruction = self
-                    .usecase_actions
-                    .lock()
-                    .unwrap()
-                    .as_mut()
-                    .unwrap()
-                    .instruction
-                    .clone();
+                let instruction = self.instruction_dialog.clone();
+                self.instruction_dialog = "".to_string();
 
                 self.execute_usecase(instruction);
                 self.show_dialog = false;
@@ -212,92 +190,92 @@ impl UseCaseReplay {
         //find the usecase that has the most similar instruction
         0
     }
-    pub fn create_usecase_actions(&mut self, index: usize, instruction: &String) {
-        let mut actions = UseCaseActions {
-            instruction: instruction.clone(),
-            actions: vec![],
-        };
-        for event in self.recorded_usecases[index].usecase_steps.iter() {
-            match event {
-                EventType::Monitor1(_) => {
-                    actions.actions.push(ActionTypes::GrabScreenshot);
-                }
-                EventType::Click(_, instruction) => {
-                    actions
-                        .actions
-                        .push(ActionTypes::Click(instruction.clone()));
-                    actions.actions.push(ActionTypes::ClickPosition(0.0, 0.0));
-                }
-                EventType::KeyDown(instruction) => {
-                    actions
-                        .actions
-                        .push(ActionTypes::KeyDown(instruction.clone()));
-                }
-                EventType::KeyUp(instruction) => {
-                    actions
-                        .actions
-                        .push(ActionTypes::KeyUp(instruction.clone()));
-                }
-                EventType::Text(instruction) => {
-                    actions
-                        .actions
-                        .push(ActionTypes::InsertText(instruction.clone()));
-                }
-                _ => {}
-            }
-        }
-        self.usecase_actions.lock().unwrap().replace(actions);
-    }
-    pub fn update_usecase_actions(&mut self) {
-        let usecase_actions_json =
-            serde_json::to_string(&self.usecase_actions.lock().unwrap().as_ref().unwrap()).unwrap();
-        println!("usecase_actions_json: {}", usecase_actions_json);
-        let prompt = format!(
-            "update the json based on the instruction, output only the json: {}",
-            usecase_actions_json
-        );
-        let ai_answer = Arc::new(Mutex::new(String::new()));
-        if let Some(llm_selector) = self.llm_selector.clone() {
-            let model = LLMType::Cloud(CloudModel::AnthropicHaiku).to_string();
-            let user_info = llm_selector
-                .lock()
-                .unwrap()
-                .user_info
-                .lock()
-                .unwrap()
-                .clone();
-            //let screenshots = vec![];
-            #[cfg(feature = "cs")]
-            {
-                let (result, max_tokens_reached) =
-                    call_aws_lambda(user_info.unwrap(), prompt, model, &vec![]);
-                let result = if let Some(json_start) = result.find('{') {
-                    if let Some(json_end) = result.rfind('}') {
-                        result[json_start..=json_end].to_string()
-                    } else {
-                        result
-                    }
-                } else {
-                    result
-                };
-                println!("result: {:?}", result);
-                if !max_tokens_reached {
-                    let usecase_actions: UseCaseActions =
-                        serde_json::from_str(&result.to_string()).unwrap();
-                    self.usecase_actions
-                        .lock()
-                        .unwrap()
-                        .replace(usecase_actions);
-                    println!("usecase_actions: {:?}", self.usecase_actions);
-                }
-            }
-        }
-    }
+    // pub fn create_usecase_actions(&mut self, index: usize, instruction: &String) {
+    //     let mut actions = UseCaseActions {
+    //         instruction: instruction.clone(),
+    //         actions: vec![],
+    //     };
+    //     for event in self.recorded_usecases[index].usecase_steps.iter() {
+    //         match event {
+    //             EventType::Monitor1(_) => {
+    //                 actions.actions.push(ActionTypes::GrabScreenshot);
+    //             }
+    //             EventType::Click(_, instruction) => {
+    //                 actions
+    //                     .actions
+    //                     .push(ActionTypes::Click(instruction.clone()));
+    //                 actions.actions.push(ActionTypes::ClickPosition(0.0, 0.0));
+    //             }
+    //             EventType::KeyDown(instruction) => {
+    //                 actions
+    //                     .actions
+    //                     .push(ActionTypes::KeyDown(instruction.clone()));
+    //             }
+    //             EventType::KeyUp(instruction) => {
+    //                 actions
+    //                     .actions
+    //                     .push(ActionTypes::KeyUp(instruction.clone()));
+    //             }
+    //             EventType::Text(instruction) => {
+    //                 actions
+    //                     .actions
+    //                     .push(ActionTypes::InsertText(instruction.clone()));
+    //             }
+    //             _ => {}
+    //         }
+    //     }
+    //     self.usecase_actions.lock().unwrap().replace(actions);
+    // }
+    // pub fn update_usecase_actions(&mut self) {
+    //     let usecase_actions_json =
+    //         serde_json::to_string(&self.usecase_actions.lock().unwrap().as_ref().unwrap()).unwrap();
+    //     println!("usecase_actions_json: {}", usecase_actions_json);
+    //     let prompt = format!(
+    //         "update the json based on the instruction, output only the json: {}",
+    //         usecase_actions_json
+    //     );
+    //     let ai_answer = Arc::new(Mutex::new(String::new()));
+    //     if let Some(llm_selector) = self.llm_selector.clone() {
+    //         let model = LLMType::Cloud(CloudModel::AnthropicHaiku).to_string();
+    //         let user_info = llm_selector
+    //             .lock()
+    //             .unwrap()
+    //             .user_info
+    //             .lock()
+    //             .unwrap()
+    //             .clone();
+    //         //let screenshots = vec![];
+    //         #[cfg(feature = "cs")]
+    //         {
+    //             let (result, max_tokens_reached) =
+    //                 call_aws_lambda(user_info.unwrap(), prompt, model, &vec![]);
+    //             let result = if let Some(json_start) = result.find('{') {
+    //                 if let Some(json_end) = result.rfind('}') {
+    //                     result[json_start..=json_end].to_string()
+    //                 } else {
+    //                     result
+    //                 }
+    //             } else {
+    //                 result
+    //             };
+    //             println!("result: {:?}", result);
+    //             if !max_tokens_reached {
+    //                 let usecase_actions: UseCaseActions =
+    //                     serde_json::from_str(&result.to_string()).unwrap();
+    //                 self.usecase_actions
+    //                     .lock()
+    //                     .unwrap()
+    //                     .replace(usecase_actions);
+    //                 println!("usecase_actions: {:?}", self.usecase_actions);
+    //             }
+    //         }
+    //     }
+    // }
     pub fn generate_usecase_actions(&mut self, instruction: &String) {
         let instruction = instruction.clone();
         self.grab_screenshot();
         let monitor1 = self.monitor1.clone();
-        let usecase_actions = self.usecase_actions.clone();
+
         let vec_instructions = self.vec_instructions.clone();
         std::thread::spawn(move || {
             let client = reqwest::blocking::Client::new();
@@ -543,22 +521,23 @@ impl UseCaseReplay {
         }
     }
     pub fn step(&mut self) {
-        if self.usecase_actions.lock().unwrap().is_none() {
+        if self.index_instruction >= self.vec_instructions.lock().unwrap().len() {
+            self.index_instruction = 0;
+            self.index_action = 0;
             return;
         }
-        // if self.index
-        //     >= self
-        //         .usecase_actions
-        //         .lock()
-        //         .unwrap()
-        //         .as_ref()
-        //         .unwrap()
-        //         .actions
-        //         .len()
-        // {
-        //     return;
-        // }
-        if self.vec_instructions.lock().unwrap().is_empty() {
+        if self.index_action
+            >= self
+                .vec_instructions
+                .lock()
+                .unwrap()
+                .get(self.index_instruction)
+                .unwrap()
+                .actions
+                .len()
+        {
+            self.index_instruction += 1;
+            self.index_action = 0;
             return;
         }
         let action = self
