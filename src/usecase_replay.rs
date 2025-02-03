@@ -11,19 +11,21 @@ use futures;
 #[cfg(target_os = "linux")]
 use gtk::false_;
 use image::{ImageBuffer, Rgba};
+use json_fixer::JsonFixer;
 #[cfg(feature = "cs")]
 use plugovr_cs::cloud_llm::call_aws_lambda;
 use rdev::{simulate, Button};
 use regex;
+use repair_json;
 use reqwest::multipart;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fs::File;
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
 use xcap::Monitor;
-
 //use anyhow;
 //use mistralrs::{IsqType, TextMessageRole, VisionLoaderType, VisionMessages, DeviceLayerMapMetadata,Device,
 //    VisionModelBuilder, DeviceMapSetting, DeviceMapMetadata, get_auto_device_map_params,ModelSelected, ChatTemplate};
@@ -49,13 +51,16 @@ pub struct UseCaseReplay {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
 pub enum ActionTypes {
     Click(String),
     ClickPosition(f32, f32),
     InsertText(String),
     KeyDown(String),
     KeyUp(String),
+    KeyPress(String),
     GrabScreenshot,
+    Replan,
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UseCaseActions {
@@ -63,13 +68,13 @@ pub struct UseCaseActions {
     pub actions: Vec<ActionTypes>,
 }
 
-// Add these struct definitions for the different possible JSON formats
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum StepFormat {
     SingleStep {
         instruction: String,
-        actions: Vec<ActionTypes>,
+        #[serde(rename = "actions")]
+        actions: Vec<Action>,
     },
     MultiStep(Vec<Step>),
 }
@@ -77,7 +82,25 @@ enum StepFormat {
 #[derive(Deserialize)]
 struct Step {
     instruction: Option<String>,
-    actions: Option<Vec<ActionTypes>>,
+    actions: Option<Vec<Action>>,
+}
+
+#[derive(Deserialize)]
+struct Action {
+    #[serde(rename = "type")]
+    action_type: String,
+    value: String,
+}
+
+impl From<Action> for ActionTypes {
+    fn from(action: Action) -> Self {
+        match action.action_type.as_str() {
+            "Click" => ActionTypes::Click(action.value),
+            "InsertText" => ActionTypes::InsertText(action.value),
+            "KeyPress" => ActionTypes::KeyPress(action.value),
+            _ => ActionTypes::Click(action.value),
+        }
+    }
 }
 
 impl UseCaseReplay {
@@ -191,7 +214,7 @@ impl UseCaseReplay {
                 self.index_instruction = 0;
                 self.index_action = 0;
                 let instruction = self.instruction_dialog.clone();
-                self.instruction_dialog = "".to_string();
+                //self.instruction_dialog = "".to_string();
 
                 self.execute_usecase(instruction);
                 self.show_dialog = false;
@@ -295,99 +318,142 @@ impl UseCaseReplay {
         let monitor1 = self.monitor1.clone();
 
         let vec_instructions = self.vec_instructions.clone();
+        self.index_instruction = 0;
+        self.index_action = 0;
         std::thread::spawn(move || {
-            let client = reqwest::blocking::Client::new();
+            let mut retries = 0;
+            const MAX_RETRIES: u32 = 3;
 
-            // Encode the image directly into the buffer
-            let mut buffer = Vec::new();
-            match monitor1.as_ref() {
-                Some(monitor) => {
-                    if let Err(e) =
-                        monitor.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
-                    {
-                        println!("Failed to encode image: {}", e);
+            while retries < MAX_RETRIES {
+                let client = reqwest::blocking::Client::new();
+
+                // Encode the image directly into the buffer
+                let mut buffer = Vec::new();
+                match monitor1.as_ref() {
+                    Some(monitor) => {
+                        if let Err(e) =
+                            monitor.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
+                        {
+                            println!("Failed to encode image: {}", e);
+                            return;
+                        }
+                    }
+                    None => {
+                        println!("No monitor screenshot available");
                         return;
                     }
                 }
-                None => {
-                    println!("No monitor screenshot available");
-                    return;
-                }
-            }
 
-            let image_part = match reqwest::blocking::multipart::Part::bytes(buffer)
-                .file_name("image.png")
-                .mime_str("image/png")
-            {
-                Ok(part) => part,
-                Err(e) => {
-                    println!("Failed to create multipart form: {}", e);
-                    return;
-                }
-            };
+                let image_part = match reqwest::blocking::multipart::Part::bytes(buffer)
+                    .file_name("image.png")
+                    .mime_str("image/png")
+                {
+                    Ok(part) => part,
+                    Err(e) => {
+                        println!("Failed to create multipart form: {}", e);
+                        return;
+                    }
+                };
 
-            let instruction_part = reqwest::blocking::multipart::Part::text(instruction.clone());
-            let form = reqwest::blocking::multipart::Form::new()
-                .part("image", image_part)
-                .part("prompt", instruction_part);
+                let instruction_part =
+                    reqwest::blocking::multipart::Part::text(instruction.clone());
+                let form = reqwest::blocking::multipart::Form::new()
+                    .part("image", image_part)
+                    .part("prompt", instruction_part);
 
-            // Send the POST request with error handling
-            let res = match client
-                .post("http://192.168.1.106:5001/get_execution_plan")
-                .multipart(form)
-                .send()
-            {
-                Ok(response) => response,
-                Err(e) => {
-                    println!("Failed to send request: {}", e);
-                    return;
-                }
-            };
+                // Send the POST request with error handling
+                let res = match client
+                    .post("http://192.168.1.106:5001/get_execution_plan")
+                    .multipart(form)
+                    .send()
+                {
+                    Ok(response) => response,
+                    Err(e) => {
+                        println!("Failed to send request: {}", e);
+                        retries += 1;
+                        if retries < MAX_RETRIES {
+                            println!("Retrying... (attempt {} of {})", retries + 1, MAX_RETRIES);
+                            thread::sleep(time::Duration::from_secs(1));
+                            continue;
+                        }
+                        return;
+                    }
+                };
 
-            // Parse the response text
-            let response_text = match res.text() {
-                Ok(text) => text,
-                Err(e) => {
-                    println!("Failed to read response: {}", e);
-                    return;
-                }
-            };
-            println!("response_text: {}", response_text);
-            let json_start = response_text.find("```json").unwrap();
-            let json_end = response_text.rfind("```").unwrap();
-            let json_str = response_text[json_start + 7..json_end].to_string();
-            println!("json_str: {}", json_str);
-            vec_instructions.lock().unwrap().clear();
+                // Parse the response text
+                let response_text = match res.text() {
+                    Ok(text) => text,
+                    Err(e) => {
+                        println!("Failed to read response: {}", e);
+                        return;
+                    }
+                };
+                println!("response_text: {}", response_text);
+                let json_start = response_text.find("```json").unwrap_or(0);
+                let json_end = response_text.rfind("```").unwrap_or(0);
+                let json_str = if json_start == 0 && json_end == 0 {
+                    response_text.to_string()
+                } else {
+                    response_text[json_start + 7..json_end].to_string()
+                };
+                println!("json_str: {}", json_str);
+                vec_instructions.lock().unwrap().clear();
+                let json_str = repair_json::repair(json_str.clone()).unwrap_or(json_str);
+                let json_str = JsonFixer::fix(&json_str.clone()).unwrap_or(json_str);
+                // Parse JSON
+                let mut parsed_json: Value =
+                    serde_json::from_str(&json_str).expect("Failed to parse JSON");
 
-            match serde_json::from_str::<StepFormat>(&json_str) {
-                Ok(StepFormat::SingleStep {
-                    instruction,
-                    actions,
-                }) => {
-                    vec_instructions.lock().unwrap().push(UseCaseActions {
+                // Output fixed JSON as a formatted string
+                let fixed_json =
+                    serde_json::to_string_pretty(&parsed_json).expect("Failed to format JSON");
+
+                println!("json_str fixed: {}", fixed_json);
+                match serde_json::from_str::<StepFormat>(&fixed_json) {
+                    Ok(StepFormat::SingleStep {
                         instruction,
                         actions,
-                    });
-                }
-                Ok(StepFormat::MultiStep(steps)) => {
-                    let mut current_instruction = String::new();
-                    for step in steps {
-                        if let Some(instruction) = step.instruction {
-                            current_instruction = instruction;
+                    }) => {
+                        vec_instructions.lock().unwrap().push(UseCaseActions {
+                            instruction,
+                            actions: actions.into_iter().map(|a| a.into()).collect(),
+                        });
+                        break; // Success - exit the retry loop
+                    }
+                    Ok(StepFormat::MultiStep(steps)) => {
+                        vec_instructions.lock().unwrap().clear();
+                        let mut current_instruction = String::new();
+                        for step in steps {
+                            if let Some(instruction) = step.instruction {
+                                current_instruction = instruction;
+                            }
+                            if let Some(actions) = step.actions {
+                                vec_instructions.lock().unwrap().push(UseCaseActions {
+                                    instruction: current_instruction.clone(),
+                                    actions: actions.into_iter().map(|a| a.into()).collect(),
+                                });
+                            }
                         }
-                        if let Some(actions) = step.actions {
-                            vec_instructions.lock().unwrap().push(UseCaseActions {
-                                instruction: current_instruction.clone(),
-                                actions,
-                            });
+                        break; // Success - exit the retry loop
+                    }
+                    Err(e) => {
+                        println!("Failed to parse JSON response: {}", e);
+                        retries += 1;
+                        if retries < MAX_RETRIES {
+                            println!("Retrying... (attempt {} of {})", retries + 1, MAX_RETRIES);
+                            thread::sleep(time::Duration::from_secs(1));
+                            continue;
                         }
                     }
                 }
-                Err(e) => {
-                    println!("Failed to parse JSON response: {}", e);
-                }
             }
-            println!("vec_instructions: {:?}", vec_instructions);
+
+            if retries >= MAX_RETRIES {
+                println!(
+                    "Failed to generate usecase actions after {} attempts",
+                    MAX_RETRIES
+                );
+            }
         });
     }
     pub fn execute_usecase(&mut self, instruction: String) {
@@ -570,32 +636,12 @@ impl UseCaseReplay {
             .clone();
         match action {
             ActionTypes::Click(instruction) => {
+                self.grab_screenshot();
                 self.click(instruction);
             }
             ActionTypes::ClickPosition(x, y) => {
                 println!("click_position: {:?}", (x, y));
                 mouse_click(x, y);
-                let next_action = self
-                    .vec_instructions
-                    .lock()
-                    .unwrap()
-                    .get(self.index_instruction)
-                    .unwrap()
-                    .actions
-                    .get(self.index_action + 1)
-                    .cloned();
-
-                if let Some(action) = next_action {
-                    if !matches!(action, ActionTypes::GrabScreenshot) {
-                        self.vec_instructions
-                            .lock()
-                            .unwrap()
-                            .get_mut(self.index_instruction)
-                            .unwrap()
-                            .actions
-                            .insert(self.index_action + 1, ActionTypes::GrabScreenshot);
-                    }
-                }
             }
             ActionTypes::InsertText(text) => {
                 println!("insert_text: {}", text);
@@ -609,7 +655,19 @@ impl UseCaseReplay {
                 println!("key_up: {}", instruction);
                 key_up(&instruction);
             }
-            ActionTypes::GrabScreenshot => self.grab_screenshot(),
+            ActionTypes::KeyPress(instruction) => {
+                println!("key_press: {}", instruction);
+                key_down(&instruction);
+                thread::sleep(time::Duration::from_millis(100));
+                key_up(&instruction);
+            }
+            ActionTypes::GrabScreenshot => {
+                self.grab_screenshot();
+            }
+            ActionTypes::Replan => {
+                let instruction = self.instruction_dialog.clone();
+                self.generate_usecase_actions(&instruction);
+            }
         }
 
         self.index_action += 1;
@@ -1032,6 +1090,34 @@ fn key_down(key: &str) {
 fn key_up(key: &str) {
     simulate(&rdev::EventType::KeyRelease(from_str(key))).unwrap();
     thread::sleep(time::Duration::from_millis(40));
+}
+
+fn fix_unescaped_quotes(json_str: &str) -> String {
+    let mut result = String::with_capacity(json_str.len());
+    let mut in_string = false;
+    let mut prev_char: Option<char> = None;
+
+    for c in json_str.chars() {
+        match c {
+            '"' => {
+                if let Some(prev) = prev_char {
+                    // If previous char is not a backslash and we're in a string,
+                    // this quote needs escaping
+                    if in_string && prev != '\\' && prev != '{' && prev != ':' {
+                        result.push('\\');
+                    }
+                    // Toggle in_string state if this quote is a string delimiter
+                    if prev == ':' || prev == '{' || !in_string {
+                        in_string = !in_string;
+                    }
+                }
+                result.push(c);
+            }
+            _ => result.push(c),
+        }
+        prev_char = Some(c);
+    }
+    result
 }
 
 // fn load_image_from_file(path: &str) -> anyhow::Result<image::DynamicImage> {
