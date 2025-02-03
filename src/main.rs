@@ -285,8 +285,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             if key == rdev::Key::F4 {
                                 usecase_replay.lock().unwrap().vec_instructions =
                                     Arc::new(Mutex::new(vec![]));
-                                usecase_replay.lock().unwrap().index_instruction = 0;
-                                usecase_replay.lock().unwrap().index_action = 0;
+                                *usecase_replay
+                                    .lock()
+                                    .unwrap()
+                                    .index_instruction
+                                    .lock()
+                                    .unwrap() = 0;
+                                *usecase_replay.lock().unwrap().index_action.lock().unwrap() = 0;
                                 usecase_replay.lock().unwrap().show_dialog = true;
                             }
                             if key == rdev::Key::ControlLeft {

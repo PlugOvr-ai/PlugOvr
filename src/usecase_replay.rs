@@ -25,6 +25,7 @@ use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
+use tray_icon::menu::accelerator;
 use xcap::Monitor;
 //use anyhow;
 //use mistralrs::{IsqType, TextMessageRole, VisionLoaderType, VisionMessages, DeviceLayerMapMetadata,Device,
@@ -35,8 +36,8 @@ use xcap::Monitor;
 //const MODEL_ID: &str = "Qwen/Qwen2.5-VL-3B-Instruct";
 
 pub struct UseCaseReplay {
-    pub index_instruction: usize,
-    pub index_action: usize,
+    pub index_instruction: Arc<Mutex<usize>>,
+    pub index_action: Arc<Mutex<usize>>,
     pub vec_instructions: Arc<Mutex<Vec<UseCaseActions>>>,
     pub recorded_usecases: Vec<UseCase>,
     pub monitor1: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
@@ -187,8 +188,8 @@ impl UseCaseReplay {
         //         }
 
         Self {
-            index_instruction: 0,
-            index_action: 0,
+            index_instruction: Arc::new(Mutex::new(0)),
+            index_action: Arc::new(Mutex::new(0)),
             vec_instructions: Arc::new(Mutex::new(vec![])),
             recorded_usecases: vec![],
             monitor1: None,
@@ -213,8 +214,8 @@ impl UseCaseReplay {
             ui.add(egui::TextEdit::multiline(&mut self.instruction_dialog));
 
             if ui.button("Run").clicked() {
-                self.index_instruction = 0;
-                self.index_action = 0;
+                *self.index_instruction.lock().unwrap() = 0;
+                *self.index_action.lock().unwrap() = 0;
                 let instruction = self.instruction_dialog.clone();
                 //self.instruction_dialog = "".to_string();
 
@@ -320,8 +321,8 @@ impl UseCaseReplay {
         let monitor1 = self.monitor1.clone();
 
         let vec_instructions = self.vec_instructions.clone();
-        self.index_instruction = 0;
-        self.index_action = 0;
+        *self.index_instruction.lock().unwrap() = 0;
+        *self.index_action.lock().unwrap() = 0;
         std::thread::spawn(move || {
             let mut retries = 0;
             const MAX_RETRIES: u32 = 3;
@@ -515,9 +516,10 @@ impl UseCaseReplay {
         *self.computing.lock().unwrap() = true;
         let monitor1 = self.monitor1.clone();
         let vec_instructions = self.vec_instructions.clone();
-        let index_instruction = self.index_instruction;
-        let index_action = self.index_action;
+        let index_instruction = self.index_instruction.clone();
+        let index_action = self.index_action.clone();
         let computing = self.computing.clone();
+
         std::thread::spawn(move || {
             let client = reqwest::blocking::Client::new();
 
@@ -589,6 +591,8 @@ impl UseCaseReplay {
 
                 //self.click_position = Some((center_x, center_y));
 
+                let index_instruction = *index_instruction.lock().unwrap();
+                let index_action = *index_action.lock().unwrap();
                 if let Some(usecase_actions) =
                     vec_instructions.lock().unwrap().get_mut(index_instruction)
                 {
@@ -616,35 +620,41 @@ impl UseCaseReplay {
                 println!("Failed to parse coordinates from response");
             }
             *computing.lock().unwrap() = false;
+            *index_action.lock().unwrap() += 1;
         });
     }
     pub fn step(&mut self) {
-        if self.index_instruction >= self.vec_instructions.lock().unwrap().len() {
-            self.index_instruction = 0;
-            self.index_action = 0;
+        let index_instruction = *self.index_instruction.lock().unwrap();
+        let index_action = *self.index_action.lock().unwrap();
+        if index_instruction >= self.vec_instructions.lock().unwrap().len() {
+            *self.index_instruction.lock().unwrap() = 0;
+            *self.index_action.lock().unwrap() = 0;
             return;
         }
-        if self.index_action
+        if *self.computing.lock().unwrap() {
+            return;
+        }
+        if index_action
             >= self
                 .vec_instructions
                 .lock()
                 .unwrap()
-                .get(self.index_instruction)
+                .get(index_instruction)
                 .unwrap()
                 .actions
                 .len()
         {
-            self.index_instruction += 1;
-            self.index_action = 0;
+            *self.index_instruction.lock().unwrap() += 1;
+            *self.index_action.lock().unwrap() = 0;
             return;
         }
         let action = self
             .vec_instructions
             .lock()
             .unwrap()
-            .get(self.index_instruction)
+            .get(index_instruction)
             .unwrap()
-            .actions[self.index_action]
+            .actions[index_action]
             .clone();
         match action {
             ActionTypes::Click(instruction) => {
@@ -681,32 +691,32 @@ impl UseCaseReplay {
                 self.generate_usecase_actions(&instruction);
             }
         }
-
-        self.index_action += 1;
-        if self.index_action
+        if !*self.computing.lock().unwrap() {
+            *self.index_action.lock().unwrap() += 1;
+        }
+        let index_action = *self.index_action.lock().unwrap();
+        let index_instruction = *self.index_instruction.lock().unwrap();
+        if index_action
             >= self
                 .vec_instructions
                 .lock()
                 .unwrap()
-                .get(self.index_instruction)
+                .get(index_instruction)
                 .unwrap()
                 .actions
                 .len()
+            && !*self.computing.lock().unwrap()
         {
-            self.index_instruction += 1;
-            self.index_action = 0;
+            *self.index_instruction.lock().unwrap() += 1;
+            *self.index_action.lock().unwrap() = 0;
         }
-
+        let index_action = *self.index_action.lock().unwrap();
+        let index_instruction = *self.index_instruction.lock().unwrap();
         let mut trigger_step = false;
-        if let Some(actions) = self
-            .vec_instructions
-            .lock()
-            .unwrap()
-            .get(self.index_instruction)
-        {
-            if self.index_action >= actions.actions.len() {
+        if let Some(actions) = self.vec_instructions.lock().unwrap().get(index_instruction) {
+            if index_action >= actions.actions.len() {
                 self.show = false;
-            } else if let ActionTypes::KeyUp(key) = &actions.actions[self.index_action] {
+            } else if let ActionTypes::KeyUp(key) = &actions.actions[index_action] {
                 trigger_step = true;
             }
         }
@@ -750,80 +760,80 @@ impl UseCaseReplay {
             );
         }
     }
-    pub fn vizualize_next_step_3d(
-        &mut self,
-        egui_context: &egui::Context,
-        three_d_backend: &mut ThreeDBackend,
-        glfw_backend: &mut egui_overlay::egui_window_glfw_passthrough::GlfwBackend,
-    ) {
-        self.model
-            .get_or_insert_with(|| create_triangle_model(&three_d_backend.context));
+    // pub fn vizualize_next_step_3d(
+    //     &mut self,
+    //     egui_context: &egui::Context,
+    //     three_d_backend: &mut ThreeDBackend,
+    //     glfw_backend: &mut egui_overlay::egui_window_glfw_passthrough::GlfwBackend,
+    // ) {
+    //     self.model
+    //         .get_or_insert_with(|| create_triangle_model(&three_d_backend.context));
 
-        if let Some(model) = &mut self.model {
-            // Create a camera
-            let camera = three_d::Camera::new_perspective(
-                egui_overlay::egui_render_three_d::three_d::Viewport::new_at_origo(
-                    glfw_backend.framebuffer_size_physical[0],
-                    glfw_backend.framebuffer_size_physical[1],
-                ),
-                egui_overlay::egui_render_three_d::three_d::vec3(0.0, 0.0, 2.0),
-                egui_overlay::egui_render_three_d::three_d::vec3(0.0, 0.0, 0.0),
-                egui_overlay::egui_render_three_d::three_d::vec3(0.0, 1.0, 0.0),
-                egui_overlay::egui_render_three_d::three_d::degrees(15.0),
-                0.1,
-                10.0,
-            );
-            // Update the animation of the triangle
-            // model.animate(glfw_backend.glfw.get_time() as _);
+    //     if let Some(model) = &mut self.model {
+    //         // Create a camera
+    //         let camera = three_d::Camera::new_perspective(
+    //             egui_overlay::egui_render_three_d::three_d::Viewport::new_at_origo(
+    //                 glfw_backend.framebuffer_size_physical[0],
+    //                 glfw_backend.framebuffer_size_physical[1],
+    //             ),
+    //             egui_overlay::egui_render_three_d::three_d::vec3(0.0, 0.0, 2.0),
+    //             egui_overlay::egui_render_three_d::three_d::vec3(0.0, 0.0, 0.0),
+    //             egui_overlay::egui_render_three_d::three_d::vec3(0.0, 1.0, 0.0),
+    //             egui_overlay::egui_render_three_d::three_d::degrees(15.0),
+    //             0.1,
+    //             10.0,
+    //         );
+    //         // Update the animation of the triangle
+    //         // model.animate(glfw_backend.glfw.get_time() as _);
 
-            // Get the screen render target to be able to render something on the screen
-            egui_overlay::egui_render_three_d::three_d::RenderTarget::<'_>::screen(
-                &three_d_backend.context,
-                glfw_backend.framebuffer_size_physical[0],
-                glfw_backend.framebuffer_size_physical[1],
-            )
-            // Clear the color and depth of the screen render target. use transparent color.
-            .clear(
-                egui_overlay::egui_render_three_d::three_d::ClearState::color_and_depth(
-                    0.0, 0.0, 0.0, 0.0, 1.0,
-                ),
-            )
-            // Render the triangle with the color material which uses the per vertex colors defined at construction
-            .render(&camera, std::iter::once(model), &[]);
-        }
+    //         // Get the screen render target to be able to render something on the screen
+    //         egui_overlay::egui_render_three_d::three_d::RenderTarget::<'_>::screen(
+    //             &three_d_backend.context,
+    //             glfw_backend.framebuffer_size_physical[0],
+    //             glfw_backend.framebuffer_size_physical[1],
+    //         )
+    //         // Clear the color and depth of the screen render target. use transparent color.
+    //         .clear(
+    //             egui_overlay::egui_render_three_d::three_d::ClearState::color_and_depth(
+    //                 0.0, 0.0, 0.0, 0.0, 1.0,
+    //             ),
+    //         )
+    //         // Render the triangle with the color material which uses the per vertex colors defined at construction
+    //         .render(&camera, std::iter::once(model), &[]);
+    //     }
 
-        egui::Window::new("Overlay")
-            .interactable(false)
-            .title_bar(false)
-            .default_pos(egui::Pos2::new(1.0, 1.0))
-            .min_size(egui::Vec2::new(1920.0 - 2.0, 1080.0 - 2.0))
-            .show(egui_context, |ui| {
-                egui::Area::new(egui::Id::new("overlay"))
-                    .fixed_pos(egui::pos2(0.0, 0.0))
-                    .show(egui_context, |ui| {
-                        let action = self
-                            .vec_instructions
-                            .lock()
-                            .unwrap()
-                            .get(self.index_instruction)
-                            .unwrap()
-                            .actions
-                            .get(self.index_action)
-                            .unwrap()
-                            .clone();
-                        ui.add_sized(
-                            egui::Vec2::new(400.0, 30.0),
-                            egui::Label::new(egui::RichText::new(format!(
-                                "PlugOvr: next action: {:?}",
-                                action
-                            ))),
-                        );
-                    });
-                if let Some(click_position) = self.click_position {
-                    Self::draw_circle(ui, click_position);
-                }
-            });
-    }
+    //     egui::Window::new("Overlay")
+    //         .interactable(false)
+    //         .title_bar(false)
+    //         .default_pos(egui::Pos2::new(1.0, 1.0))
+    //         .min_size(egui::Vec2::new(1920.0 - 2.0, 1080.0 - 2.0))
+    //         .show(egui_context, |ui| {
+    //             egui::Area::new(egui::Id::new("overlay"))
+    //                 .fixed_pos(egui::pos2(0.0, 0.0))
+    //                 .show(egui_context, |ui| {
+    //                     let action = self
+    //                         .vec_instructions
+    //                         .lock()
+    //                         .unwrap()
+    //                         .get(self.index_instruction)
+    //                         .unwrap()
+    //                         .actions
+    //                         .get(self.index_action)
+    //                         .unwrap()
+    //                         .clone();
+    //                     ui.add_sized(
+    //                         egui::Vec2::new(400.0, 30.0),
+    //                         egui::Label::new(egui::RichText::new(format!(
+    //                             "PlugOvr: next action: {:?}",
+    //                             action
+    //                         ))),
+    //                     );
+    //                 });
+    //             if let Some(click_position) = self.click_position {
+    //                 Self::draw_circle(ui, click_position);
+    //             }
+    //         });
+    // }
     pub fn vizualize_next_step(
         &mut self,
         egui_context: &egui::Context,
@@ -833,15 +843,18 @@ impl UseCaseReplay {
         if self.vec_instructions.lock().unwrap().is_empty() {
             return;
         }
-        if self.index_instruction >= self.vec_instructions.lock().unwrap().len() {
+        let index_instruction = *self.index_instruction.lock().unwrap();
+        if index_instruction >= self.vec_instructions.lock().unwrap().len() {
             return;
         }
-        if self.index_action
+        let index_action = *self.index_action.lock().unwrap();
+        let index_instruction = *self.index_instruction.lock().unwrap();
+        if index_action
             >= self
                 .vec_instructions
                 .lock()
                 .unwrap()
-                .get(self.index_instruction)
+                .get(index_instruction)
                 .unwrap()
                 .actions
                 .len()
@@ -863,10 +876,10 @@ impl UseCaseReplay {
                             .vec_instructions
                             .lock()
                             .unwrap()
-                            .get(self.index_instruction)
+                            .get(index_instruction)
                             .unwrap()
                             .actions
-                            .get(self.index_action)
+                            .get(index_action)
                             .unwrap()
                             .clone();
                         ui.add_sized(
@@ -884,10 +897,10 @@ impl UseCaseReplay {
                     .vec_instructions
                     .lock()
                     .unwrap()
-                    .get(self.index_instruction)
+                    .get(index_instruction)
                     .unwrap()
                     .actions
-                    .get(self.index_action)
+                    .get(index_action)
                     .unwrap()
                 {
                     Self::draw_circle(ui, (*x, *y));
