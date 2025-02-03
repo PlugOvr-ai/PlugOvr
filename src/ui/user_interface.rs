@@ -513,7 +513,8 @@ impl EguiOverlay for PlugOvr {
             }
 
             self.updater_menu_item.set_enabled(true);
-            self.updater_menu_item.set_text(self.main_window.version_msg.lock().unwrap().clone());
+            self.updater_menu_item
+                .set_text(self.main_window.version_msg.lock().unwrap().clone());
             *self.main_window.version_msg_old.lock().unwrap() =
                 self.main_window.version_msg.lock().unwrap().clone();
         }
@@ -605,7 +606,12 @@ impl EguiOverlay for PlugOvr {
         }
 
         if self.usecase_replay.lock().unwrap().show {
-            self.usecase_replay.lock().unwrap().vizualize_next_step(
+            self.usecase_replay.lock().unwrap().visualize_next_step(
+                egui_context,
+                _default_gfx_backend,
+                glfw_backend,
+            );
+            self.usecase_replay.lock().unwrap().visualize_planning(
                 egui_context,
                 _default_gfx_backend,
                 glfw_backend,

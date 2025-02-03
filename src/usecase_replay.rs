@@ -27,13 +27,6 @@ use std::thread;
 use std::time;
 use tray_icon::menu::accelerator;
 use xcap::Monitor;
-//use anyhow;
-//use mistralrs::{IsqType, TextMessageRole, VisionLoaderType, VisionMessages, DeviceLayerMapMetadata,Device,
-//    VisionModelBuilder, DeviceMapSetting, DeviceMapMetadata, get_auto_device_map_params,ModelSelected, ChatTemplate};
-
-//const MODEL_ID: &str = "Qwen/Qwen2-VL-2B-Instruct";
-//const MODEL_ID: &str = "bytedance-research/UI-TARS-2B-SFT";
-//const MODEL_ID: &str = "Qwen/Qwen2.5-VL-3B-Instruct";
 
 pub struct UseCaseReplay {
     pub index_instruction: Arc<Mutex<usize>>,
@@ -49,7 +42,8 @@ pub struct UseCaseReplay {
     pub model: Option<Gm<Mesh, ColorMaterial>>,
     pub llm_selector: Option<Arc<Mutex<LLMSelector>>>,
     instruction_dialog: String,
-    pub computing: Arc<Mutex<bool>>,
+    pub computing_action: Arc<Mutex<bool>>,
+    pub computing_plan: Arc<Mutex<bool>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -107,86 +101,6 @@ impl From<Action> for ActionTypes {
 
 impl UseCaseReplay {
     pub fn new() -> Self {
-        //   //      let model_selected = ModelSelected::VisionPlain::default();
-
-        //         let device = Device::new_metal(0).unwrap();
-        //         let model = VisionModelBuilder::new(MODEL_ID, VisionLoaderType::Qwen2VL)
-        //         //.with_isq(IsqType::Q4K)
-        //         .with_logging()
-        //         .with_token_source(mistralrs::TokenSource::None)
-        //         .from_max_edge(1024)
-        //         .with_dtype(mistralrs::ModelDType::Auto)
-        //         //.with_chat_template("qwen2vl_chat_template.json")
-
-        //         //.with_device_mapping(DeviceMapSetting::Map(DeviceMapMetadata::from_num_device_layers(vec![DeviceLayerMapMetadata{ordinal: 1, layers: 28}])))
-
-        //         .with_max_num_seqs(4096)
-        //         .build()
-        //         .await;
-
-        //         let prompt = r#"You are a GUI agent. You are given a task and your action history, with screenshots. You need to perform the next action to complete the task.
-
-        // ## Output Format
-        // ```\nThought: ...
-        // Action: ...\n```
-
-        // ## Action Space
-
-        // click(start_box='<|box_start|>(x1,y1)<|box_end|>')
-        // left_double(start_box='<|box_start|>(x1,y1)<|box_end|>')
-        // right_single(start_box='<|box_start|>(x1,y1)<|box_end|>')
-        // drag(start_box='<|box_start|>(x1,y1)<|box_end|>', end_box='<|box_start|>(x3,y3)<|box_end|>')
-        // hotkey(key='')
-        // type(content='') #If you want to submit your input, use \"\
-        // \" at the end of `content`.
-        // scroll(start_box='<|box_start|>(x1,y1)<|box_end|>', direction='down or up or right or left')
-        // wait() #Sleep for 5s and take a screenshot to check for any changes.
-        // finished()
-        // call_user() # Submit the task and call the user when the task is unsolvable, or when you need the user's help.
-
-        // ## Note
-        // - Use English in `Thought` part.
-        // - Summarize your next action (with its target element) in one sentence in `Thought` part.
-
-        // ## User Instruction
-        // "#;
-        //         let instruction = "click on Chrome";
-        //         let prompt = format!("{}", instruction);
-        //         match model {
-        //             Ok(model) => {
-        //                 println!("model loaded");
-        //                 //let bytes = include_bytes!("../debug_screenshot.png");
-        //                 //let image = image::load_from_memory(&bytes).unwrap();
-        //                 let image = load_image_from_file("debug_screenshot.png").unwrap();
-        //                 let resized = image::imageops::resize(
-        //                     &image,
-        //                     1024,
-        //                     1024,
-        //                     image::imageops::FilterType::Lanczos3
-        //                  );
-
-        //                 println!("image loaded");
-        //                 let messages = VisionMessages::new().add_image_message(
-        //                     TextMessageRole::User,
-        //                     prompt,
-        //                     image::DynamicImage::ImageRgba8(resized),
-        //                     &model,
-        //                 );
-        //                 if let Ok(messages) = messages {
-        //                     if let Ok(response) = model.send_chat_request(messages).await {
-        //                         println!("{}", response.choices[0].message.content.as_ref().unwrap());
-        //                         dbg!(
-        //                             response.usage.avg_prompt_tok_per_sec,
-        //                             response.usage.avg_compl_tok_per_sec
-        //                         );
-        //                     }
-        //                 }
-        //             }
-        //             Err(e) => {
-        //                 println!("model not loaded: {}", e);
-        //             }
-        //         }
-
         Self {
             index_instruction: Arc::new(Mutex::new(0)),
             index_action: Arc::new(Mutex::new(0)),
@@ -201,7 +115,8 @@ impl UseCaseReplay {
             model: None,
             llm_selector: None,
             instruction_dialog: "".to_string(),
-            computing: Arc::new(Mutex::new(false)),
+            computing_action: Arc::new(Mutex::new(false)),
+            computing_plan: Arc::new(Mutex::new(false)),
         }
     }
     pub fn show_dialog(&mut self, egui_context: &egui::Context) {
@@ -234,87 +149,6 @@ impl UseCaseReplay {
         //find the usecase that has the most similar instruction
         0
     }
-    // pub fn create_usecase_actions(&mut self, index: usize, instruction: &String) {
-    //     let mut actions = UseCaseActions {
-    //         instruction: instruction.clone(),
-    //         actions: vec![],
-    //     };
-    //     for event in self.recorded_usecases[index].usecase_steps.iter() {
-    //         match event {
-    //             EventType::Monitor1(_) => {
-    //                 actions.actions.push(ActionTypes::GrabScreenshot);
-    //             }
-    //             EventType::Click(_, instruction) => {
-    //                 actions
-    //                     .actions
-    //                     .push(ActionTypes::Click(instruction.clone()));
-    //                 actions.actions.push(ActionTypes::ClickPosition(0.0, 0.0));
-    //             }
-    //             EventType::KeyDown(instruction) => {
-    //                 actions
-    //                     .actions
-    //                     .push(ActionTypes::KeyDown(instruction.clone()));
-    //             }
-    //             EventType::KeyUp(instruction) => {
-    //                 actions
-    //                     .actions
-    //                     .push(ActionTypes::KeyUp(instruction.clone()));
-    //             }
-    //             EventType::Text(instruction) => {
-    //                 actions
-    //                     .actions
-    //                     .push(ActionTypes::InsertText(instruction.clone()));
-    //             }
-    //             _ => {}
-    //         }
-    //     }
-    //     self.usecase_actions.lock().unwrap().replace(actions);
-    // }
-    // pub fn update_usecase_actions(&mut self) {
-    //     let usecase_actions_json =
-    //         serde_json::to_string(&self.usecase_actions.lock().unwrap().as_ref().unwrap()).unwrap();
-    //     println!("usecase_actions_json: {}", usecase_actions_json);
-    //     let prompt = format!(
-    //         "update the json based on the instruction, output only the json: {}",
-    //         usecase_actions_json
-    //     );
-    //     let ai_answer = Arc::new(Mutex::new(String::new()));
-    //     if let Some(llm_selector) = self.llm_selector.clone() {
-    //         let model = LLMType::Cloud(CloudModel::AnthropicHaiku).to_string();
-    //         let user_info = llm_selector
-    //             .lock()
-    //             .unwrap()
-    //             .user_info
-    //             .lock()
-    //             .unwrap()
-    //             .clone();
-    //         //let screenshots = vec![];
-    //         #[cfg(feature = "cs")]
-    //         {
-    //             let (result, max_tokens_reached) =
-    //                 call_aws_lambda(user_info.unwrap(), prompt, model, &vec![]);
-    //             let result = if let Some(json_start) = result.find('{') {
-    //                 if let Some(json_end) = result.rfind('}') {
-    //                     result[json_start..=json_end].to_string()
-    //                 } else {
-    //                     result
-    //                 }
-    //             } else {
-    //                 result
-    //             };
-    //             println!("result: {:?}", result);
-    //             if !max_tokens_reached {
-    //                 let usecase_actions: UseCaseActions =
-    //                     serde_json::from_str(&result.to_string()).unwrap();
-    //                 self.usecase_actions
-    //                     .lock()
-    //                     .unwrap()
-    //                     .replace(usecase_actions);
-    //                 println!("usecase_actions: {:?}", self.usecase_actions);
-    //             }
-    //         }
-    //     }
-    // }
     pub fn generate_usecase_actions(&mut self, instruction: &String) {
         let instruction = instruction.clone();
         self.grab_screenshot();
@@ -323,6 +157,8 @@ impl UseCaseReplay {
         let vec_instructions = self.vec_instructions.clone();
         *self.index_instruction.lock().unwrap() = 0;
         *self.index_action.lock().unwrap() = 0;
+        *self.computing_plan.lock().unwrap() = true;
+        let computing_plan = self.computing_plan.clone();
         std::thread::spawn(move || {
             let mut retries = 0;
             const MAX_RETRIES: u32 = 3;
@@ -457,6 +293,7 @@ impl UseCaseReplay {
                     MAX_RETRIES
                 );
             }
+            *computing_plan.lock().unwrap() = false;
         });
     }
     pub fn execute_usecase(&mut self, instruction: String) {
@@ -513,12 +350,12 @@ impl UseCaseReplay {
     }
     pub fn click(&mut self, instruction: String) {
         println!("click: {}", instruction);
-        *self.computing.lock().unwrap() = true;
+        *self.computing_action.lock().unwrap() = true;
         let monitor1 = self.monitor1.clone();
         let vec_instructions = self.vec_instructions.clone();
         let index_instruction = self.index_instruction.clone();
         let index_action = self.index_action.clone();
-        let computing = self.computing.clone();
+        let computing_action = self.computing_action.clone();
 
         std::thread::spawn(move || {
             let client = reqwest::blocking::Client::new();
@@ -619,7 +456,7 @@ impl UseCaseReplay {
             } else {
                 println!("Failed to parse coordinates from response");
             }
-            *computing.lock().unwrap() = false;
+            *computing_action.lock().unwrap() = false;
             *index_action.lock().unwrap() += 1;
         });
     }
@@ -631,7 +468,10 @@ impl UseCaseReplay {
             *self.index_action.lock().unwrap() = 0;
             return;
         }
-        if *self.computing.lock().unwrap() {
+        if *self.computing_action.lock().unwrap() {
+            return;
+        }
+        if *self.computing_plan.lock().unwrap() {
             return;
         }
         if index_action
@@ -691,7 +531,7 @@ impl UseCaseReplay {
                 self.generate_usecase_actions(&instruction);
             }
         }
-        if !*self.computing.lock().unwrap() {
+        if !*self.computing_action.lock().unwrap() {
             *self.index_action.lock().unwrap() += 1;
         }
         let index_action = *self.index_action.lock().unwrap();
@@ -705,7 +545,7 @@ impl UseCaseReplay {
                 .unwrap()
                 .actions
                 .len()
-            && !*self.computing.lock().unwrap()
+            && !*self.computing_action.lock().unwrap()
         {
             *self.index_instruction.lock().unwrap() += 1;
             *self.index_action.lock().unwrap() = 0;
@@ -760,81 +600,7 @@ impl UseCaseReplay {
             );
         }
     }
-    // pub fn vizualize_next_step_3d(
-    //     &mut self,
-    //     egui_context: &egui::Context,
-    //     three_d_backend: &mut ThreeDBackend,
-    //     glfw_backend: &mut egui_overlay::egui_window_glfw_passthrough::GlfwBackend,
-    // ) {
-    //     self.model
-    //         .get_or_insert_with(|| create_triangle_model(&three_d_backend.context));
-
-    //     if let Some(model) = &mut self.model {
-    //         // Create a camera
-    //         let camera = three_d::Camera::new_perspective(
-    //             egui_overlay::egui_render_three_d::three_d::Viewport::new_at_origo(
-    //                 glfw_backend.framebuffer_size_physical[0],
-    //                 glfw_backend.framebuffer_size_physical[1],
-    //             ),
-    //             egui_overlay::egui_render_three_d::three_d::vec3(0.0, 0.0, 2.0),
-    //             egui_overlay::egui_render_three_d::three_d::vec3(0.0, 0.0, 0.0),
-    //             egui_overlay::egui_render_three_d::three_d::vec3(0.0, 1.0, 0.0),
-    //             egui_overlay::egui_render_three_d::three_d::degrees(15.0),
-    //             0.1,
-    //             10.0,
-    //         );
-    //         // Update the animation of the triangle
-    //         // model.animate(glfw_backend.glfw.get_time() as _);
-
-    //         // Get the screen render target to be able to render something on the screen
-    //         egui_overlay::egui_render_three_d::three_d::RenderTarget::<'_>::screen(
-    //             &three_d_backend.context,
-    //             glfw_backend.framebuffer_size_physical[0],
-    //             glfw_backend.framebuffer_size_physical[1],
-    //         )
-    //         // Clear the color and depth of the screen render target. use transparent color.
-    //         .clear(
-    //             egui_overlay::egui_render_three_d::three_d::ClearState::color_and_depth(
-    //                 0.0, 0.0, 0.0, 0.0, 1.0,
-    //             ),
-    //         )
-    //         // Render the triangle with the color material which uses the per vertex colors defined at construction
-    //         .render(&camera, std::iter::once(model), &[]);
-    //     }
-
-    //     egui::Window::new("Overlay")
-    //         .interactable(false)
-    //         .title_bar(false)
-    //         .default_pos(egui::Pos2::new(1.0, 1.0))
-    //         .min_size(egui::Vec2::new(1920.0 - 2.0, 1080.0 - 2.0))
-    //         .show(egui_context, |ui| {
-    //             egui::Area::new(egui::Id::new("overlay"))
-    //                 .fixed_pos(egui::pos2(0.0, 0.0))
-    //                 .show(egui_context, |ui| {
-    //                     let action = self
-    //                         .vec_instructions
-    //                         .lock()
-    //                         .unwrap()
-    //                         .get(self.index_instruction)
-    //                         .unwrap()
-    //                         .actions
-    //                         .get(self.index_action)
-    //                         .unwrap()
-    //                         .clone();
-    //                     ui.add_sized(
-    //                         egui::Vec2::new(400.0, 30.0),
-    //                         egui::Label::new(egui::RichText::new(format!(
-    //                             "PlugOvr: next action: {:?}",
-    //                             action
-    //                         ))),
-    //                     );
-    //                 });
-    //             if let Some(click_position) = self.click_position {
-    //                 Self::draw_circle(ui, click_position);
-    //             }
-    //         });
-    // }
-    pub fn vizualize_next_step(
+    pub fn visualize_next_step(
         &mut self,
         egui_context: &egui::Context,
         three_d_backend: &mut ThreeDBackend,
@@ -861,8 +627,12 @@ impl UseCaseReplay {
         {
             return;
         }
-        let computing = self.computing.lock().unwrap();
-        let computing_text = if *computing { "Computing..." } else { "" };
+        let computing_action = self.computing_action.lock().unwrap();
+        let computing_text = if *computing_action {
+            "Computing..."
+        } else {
+            ""
+        };
         egui::Window::new("Overlay")
             .interactable(false)
             .title_bar(false)
@@ -882,6 +652,7 @@ impl UseCaseReplay {
                             .get(index_action)
                             .unwrap()
                             .clone();
+
                         ui.add_sized(
                             egui::Vec2::new(400.0, 30.0),
                             egui::Label::new(
@@ -907,37 +678,35 @@ impl UseCaseReplay {
                 }
             });
     }
-}
 
-fn create_triangle_model(three_d_context: &three_d::Context) -> Gm<Mesh, ColorMaterial> {
-    use three_d::*;
-
-    // Create a CPU-side mesh consisting of a single colored triangle
-    let positions = vec![
-        vec3(0.5, -0.5, 0.0),  // bottom right
-        vec3(-0.5, -0.5, 0.0), // bottom left
-        vec3(0.0, 0.5, 0.0),   // top
-    ];
-    let colors = vec![
-        Srgba::RED,   // bottom right
-        Srgba::GREEN, // bottom left
-        Srgba::BLUE,  // top
-    ];
-    let cpu_mesh = CpuMesh {
-        positions: Positions::F32(positions),
-        colors: Some(colors),
-        ..Default::default()
-    };
-
-    // Construct a model, with a default color material, thereby transferring the mesh data to the GPU
-    let mut model = Gm::new(
-        Mesh::new(three_d_context, &cpu_mesh),
-        ColorMaterial::default(),
-    );
-
-    // Add an animation to the triangle.
-    model.set_animation(|time| Mat4::from_angle_y(radians(time * 0.005)));
-    model
+    pub fn visualize_planning(
+        &mut self,
+        egui_context: &egui::Context,
+        three_d_backend: &mut ThreeDBackend,
+        glfw_backend: &mut egui_overlay::egui_window_glfw_passthrough::GlfwBackend,
+    ) {
+        if !*self.computing_plan.lock().unwrap() {
+            return;
+        }
+        egui::Window::new("Overlay")
+            .interactable(false)
+            .title_bar(false)
+            .default_pos(egui::Pos2::new(10.0, 1.0))
+            .min_size(egui::Vec2::new(1920.0 - 2.0, 1080.0 - 2.0))
+            .show(egui_context, |ui| {
+                egui::Area::new(egui::Id::new("overlay"))
+                    .fixed_pos(egui::pos2(0.0, 0.0))
+                    .show(egui_context, |ui| {
+                        ui.add_sized(
+                            egui::Vec2::new(400.0, 30.0),
+                            egui::Label::new(
+                                egui::RichText::new("PlugOvr: planning...")
+                                    .background_color(egui::Color32::from_rgb(255, 255, 255)),
+                            ),
+                        );
+                    });
+            });
+    }
 }
 // Add this helper function
 fn parse_coordinates_florence2(response: &str) -> Option<(f32, f32, f32, f32)> {
@@ -1120,34 +889,6 @@ fn key_down(key: &str) {
 fn key_up(key: &str) {
     simulate(&rdev::EventType::KeyRelease(from_str(key))).unwrap();
     thread::sleep(time::Duration::from_millis(40));
-}
-
-fn fix_unescaped_quotes(json_str: &str) -> String {
-    let mut result = String::with_capacity(json_str.len());
-    let mut in_string = false;
-    let mut prev_char: Option<char> = None;
-
-    for c in json_str.chars() {
-        match c {
-            '"' => {
-                if let Some(prev) = prev_char {
-                    // If previous char is not a backslash and we're in a string,
-                    // this quote needs escaping
-                    if in_string && prev != '\\' && prev != '{' && prev != ':' {
-                        result.push('\\');
-                    }
-                    // Toggle in_string state if this quote is a string delimiter
-                    if prev == ':' || prev == '{' || !in_string {
-                        in_string = !in_string;
-                    }
-                }
-                result.push(c);
-            }
-            _ => result.push(c),
-        }
-        prev_char = Some(c);
-    }
-    result
 }
 
 // fn load_image_from_file(path: &str) -> anyhow::Result<image::DynamicImage> {
