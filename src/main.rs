@@ -16,25 +16,30 @@ extern crate objc;
 
 mod llm;
 mod ui;
+#[cfg(feature = "computeruse_record")]
 mod usecase_recorder;
+#[cfg(feature = "computeruse_replay")]
 mod usecase_replay;
 mod version_check;
 mod window_handling;
 
+#[cfg(feature = "computeruse_record")]
 use crate::usecase_recorder::EventType;
+#[cfg(feature = "computeruse_replay")]
+use crate::usecase_replay::UseCaseReplay;
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+use enigo::{Keyboard, Settings};
 #[cfg(not(target_os = "macos"))]
 use rdev::listen;
 #[cfg(target_os = "macos")]
 use rdev::{listen, Event};
 use std::error::Error;
 use std::time::Duration;
+#[cfg(feature = "computeruse_record")]
 use usecase_recorder::Point;
+#[cfg(feature = "computeruse_record")]
 use usecase_recorder::UseCaseRecorder;
 use window_handling::ActiveWindow;
-
-use crate::usecase_replay::UseCaseReplay;
-#[cfg(any(target_os = "windows", target_os = "linux"))]
-use enigo::{Keyboard, Settings};
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 fn send_cmd_c() -> Result<(), Box<dyn std::error::Error>> {
@@ -158,6 +163,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let alt_pressed = Arc::new(Mutex::new(false));
     let text_entryfield_position = Arc::new(Mutex::new((0, 0)));
     let ai_context = Arc::new(Mutex::new(String::new()));
+    #[cfg(feature = "computeruse_record")]
     let usecase_recorder = Arc::new(Mutex::new(UseCaseRecorder::new()));
 
     let mouse_position = Arc::new(Mutex::new((0, 0)));
@@ -169,6 +175,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(target_os = "macos")]
     let active_window = Arc::new(Mutex::new(ActiveWindow(0)));
 
+    #[cfg(feature = "computeruse_replay")]
     let usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
 
     std::env::set_var("RUST_LOG", "error");
@@ -188,7 +195,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let ai_context = ai_context.clone();
         let active_window = active_window.clone();
         let alt_pressed = alt_pressed.clone();
+        #[cfg(feature = "computeruse_record")]
         let usecase_recorder = usecase_recorder.clone();
+        #[cfg(feature = "computeruse_replay")]
         let usecase_replay = usecase_replay.clone();
         let _ = thread::Builder::new()
             .name("Key Event Thread".to_string())
@@ -197,6 +206,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 // Add a delay of 2 seconds
                 std::thread::sleep(std::time::Duration::from_secs(2));
                 let callback = move |event: Event| {
+                    #[cfg(feature = "computeruse_record")]
                     if usecase_recorder.lock().unwrap().recording {
                         if usecase_recorder.lock().unwrap().add_image {
                             if let Ok(mut recorder) = usecase_recorder.lock() {
@@ -270,9 +280,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                     match event.event_type {
                         rdev::EventType::KeyPress(key) => {
+                            #[cfg(feature = "computeruse_replay")]
                             if key == rdev::Key::F2 {
                                 usecase_replay.lock().unwrap().step();
                             }
+                            #[cfg(feature = "computeruse_replay")]
                             if key == rdev::Key::F4 {
                                 usecase_replay.lock().unwrap().vec_instructions =
                                     Arc::new(Mutex::new(vec![]));
@@ -332,6 +344,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                     save_bool_config("hide_ui.txt", *hide_ui_guard);
                                 }
                                 #[cfg(any(target_os = "linux", target_os = "windows"))]
+                                #[cfg(feature = "computeruse_record")]
                                 if key == rdev::Key::KeyR
                                     && *control_pressed.lock().unwrap()
                                     && *alt_pressed.lock().unwrap()
@@ -339,6 +352,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                     usecase_recorder.lock().unwrap().show = true;
                                 }
                                 #[cfg(target_os = "macos")]
+                                #[cfg(feature = "computeruse_record")]
                                 if key == rdev::Key::KeyR && *control_pressed.lock().unwrap() {
                                     usecase_recorder.lock().unwrap().show = true;
                                 }
@@ -357,6 +371,33 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                         eprintln!("Failed to activate window: {:?}", e);
                                     }
                                 }
+                                // if key == rdev::Key::Escape
+                                //     && usecase_replay
+                                //         .lock()
+                                //         .unwrap()
+                                //         .vec_instructions
+                                //         .lock()
+                                //         .unwrap()
+                                //         .len()
+                                //         > 0
+                                // {
+                                //     usecase_replay
+                                //         .lock()
+                                //         .unwrap()
+                                //         .vec_instructions
+                                //         .lock()
+                                //         .unwrap()
+                                //         .clear();
+                                //     *usecase_replay
+                                //         .lock()
+                                //         .unwrap()
+                                //         .index_instruction
+                                //         .lock()
+                                //         .unwrap() = 0;
+                                //     *usecase_replay.lock().unwrap().index_action.lock().unwrap() =
+                                //         0;
+                                //     usecase_replay.lock().unwrap().show_dialog = false;
+                                // }
                             }
                         }
                         rdev::EventType::KeyRelease(key) => {
@@ -402,7 +443,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
             ai_context,
             active_window,
             shortcut_window,
+            #[cfg(feature = "computeruse_record")]
             usecase_recorder,
+            #[cfg(feature = "computeruse_replay")]
             usecase_replay,
         )
         .await;

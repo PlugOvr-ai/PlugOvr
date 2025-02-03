@@ -22,6 +22,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs::File;
 use std::io::Cursor;
+use std::io::Read;
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
@@ -44,6 +46,7 @@ pub struct UseCaseReplay {
     instruction_dialog: String,
     pub computing_action: Arc<Mutex<bool>>,
     pub computing_plan: Arc<Mutex<bool>>,
+    pub server_url: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -101,6 +104,7 @@ impl From<Action> for ActionTypes {
 
 impl UseCaseReplay {
     pub fn new() -> Self {
+        let server_url = load_server_url().unwrap_or("http://127.0.0.1:5001".to_string());
         Self {
             index_instruction: Arc::new(Mutex::new(0)),
             index_action: Arc::new(Mutex::new(0)),
@@ -117,6 +121,7 @@ impl UseCaseReplay {
             instruction_dialog: "".to_string(),
             computing_action: Arc::new(Mutex::new(false)),
             computing_plan: Arc::new(Mutex::new(false)),
+            server_url: server_url,
         }
     }
     pub fn show_dialog(&mut self, egui_context: &egui::Context) {
@@ -146,9 +151,19 @@ impl UseCaseReplay {
                 self.show_dialog = false;
                 self.show = true;
             }
+            ui.add(egui::Label::new("Server URL"));
+            if ui
+                .add(egui::TextEdit::singleline(&mut self.server_url))
+                .changed()
+            {
+                save_server_url(&self.server_url);
+            }
         });
-        self.show_dialog = show_dialog;
-        self.instruction_dialog = instruction_dialog;
+        if self.show_dialog {
+            self.show_dialog = show_dialog;
+
+            self.instruction_dialog = instruction_dialog;
+        }
     }
 
     pub fn load_usecase(&mut self, filename: String) {
@@ -170,6 +185,7 @@ impl UseCaseReplay {
         *self.index_action.lock().unwrap() = 0;
         *self.computing_plan.lock().unwrap() = true;
         let computing_plan = self.computing_plan.clone();
+        let server_url = self.server_url.clone();
         std::thread::spawn(move || {
             let mut retries = 0;
             const MAX_RETRIES: u32 = 3;
@@ -213,7 +229,7 @@ impl UseCaseReplay {
 
                 // Send the POST request with error handling
                 let res = match client
-                    .post("http://192.168.1.106:5001/get_execution_plan")
+                    .post(format!("{}/get_execution_plan", server_url))
                     .multipart(form)
                     .send()
                 {
@@ -367,7 +383,7 @@ impl UseCaseReplay {
         let index_instruction = self.index_instruction.clone();
         let index_action = self.index_action.clone();
         let computing_action = self.computing_action.clone();
-
+        let server_url = self.server_url.clone();
         std::thread::spawn(move || {
             let client = reqwest::blocking::Client::new();
 
@@ -406,7 +422,7 @@ impl UseCaseReplay {
 
             // Send the POST request with error handling
             let res = match client
-                .post("http://192.168.1.106:5001/get_location")
+                .post(format!("{}/get_location", server_url))
                 .multipart(form)
                 .send()
             {
@@ -905,3 +921,25 @@ fn key_up(key: &str) {
 // fn load_image_from_file(path: &str) -> anyhow::Result<image::DynamicImage> {
 //     Ok(image::open(path)?)
 // }
+fn save_server_url(server_url: &str) -> std::io::Result<()> {
+    let mut path = dirs::home_dir().expect("Unable to get home directory");
+    path.push(".plugovr");
+    std::fs::create_dir_all(&path)?;
+    path.push("server_url.json");
+
+    let serialized = serde_json::to_string(&server_url)?;
+    let mut file = File::create(path)?;
+    file.write_all(serialized.as_bytes())?;
+    Ok(())
+}
+
+fn load_server_url() -> std::io::Result<String> {
+    let mut path = dirs::home_dir().expect("Unable to get home directory");
+    path.push(".plugovr");
+    path.push("server_url.json");
+    let mut file = File::open(path)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    let server_url: String = serde_json::from_str(&contents)?;
+    Ok(server_url)
+}

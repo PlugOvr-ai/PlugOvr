@@ -5,7 +5,9 @@ use crate::ui::screen_dimensions::get_screen_dimensions;
 use crate::ui::template_editor::create_prompt_templates;
 use crate::ui::template_editor::TemplateEditor;
 use crate::ui::template_editor::TemplateMap;
+#[cfg(feature = "computeruse_record")]
 use crate::usecase_recorder::UseCaseRecorder;
+#[cfg(feature = "computeruse_replay")]
 use crate::usecase_replay::UseCaseReplay;
 use crate::version_check;
 use crate::ActiveWindow;
@@ -41,8 +43,8 @@ pub async fn run(
 
     active_window: Arc<Mutex<ActiveWindow>>,
     shortcut_window: Arc<Mutex<bool>>,
-    usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
-    usecase_replay: Arc<Mutex<UseCaseReplay>>,
+    #[cfg(feature = "computeruse_record")] usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
+    #[cfg(feature = "computeruse_replay")] usecase_replay: Arc<Mutex<UseCaseReplay>>,
 ) {
     // use tracing_subscriber::{fmt, prelude::*, EnvFilter};
     // // if RUST_LOG is not set, we will use the following filters
@@ -61,7 +63,9 @@ pub async fn run(
         ai_context,
         active_window,
         shortcut_window,
+        #[cfg(feature = "computeruse_record")]
         usecase_recorder,
+        #[cfg(feature = "computeruse_replay")]
         usecase_replay,
     )
     .await;
@@ -98,7 +102,9 @@ pub struct PlugOvr {
     menu_update_sender: Arc<Mutex<Option<Sender<MenuUpdate>>>>,
     last_login_state: Option<bool>,
     last_loading_state: Option<bool>,
+    #[cfg(feature = "computeruse_record")]
     pub usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
+    #[cfg(feature = "computeruse_replay")]
     pub usecase_replay: Arc<Mutex<UseCaseReplay>>,
 }
 
@@ -112,8 +118,8 @@ impl PlugOvr {
 
         active_window: Arc<Mutex<ActiveWindow>>,
         shortcut_window: Arc<Mutex<bool>>,
-        usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
-        usecase_replay: Arc<Mutex<UseCaseReplay>>,
+        #[cfg(feature = "computeruse_record")] usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
+        #[cfg(feature = "computeruse_replay")] usecase_replay: Arc<Mutex<UseCaseReplay>>,
     ) -> Self {
         let (screen_width, screen_height) = get_screen_dimensions();
         // Import the user_management module
@@ -181,7 +187,10 @@ impl PlugOvr {
 
         let llm_selector = Arc::new(Mutex::new(LLMSelector::new(user_info.clone())));
 
-        usecase_replay.lock().unwrap().llm_selector = Some(llm_selector.clone());
+        #[cfg(feature = "computeruse_replay")]
+        {
+            usecase_replay.lock().unwrap().llm_selector = Some(llm_selector.clone());
+        }
 
         let assistance_window = AssistanceWindow::new(
             active_window.clone(),
@@ -230,7 +239,9 @@ impl PlugOvr {
             menu_update_sender: Arc::new(Mutex::new(None)),
             last_login_state: None,
             last_loading_state: None,
+            #[cfg(feature = "computeruse_record")]
             usecase_recorder: usecase_recorder.clone(),
+            #[cfg(feature = "computeruse_replay")]
             usecase_replay: usecase_replay.clone(),
         };
 
@@ -598,30 +609,36 @@ impl EguiOverlay for PlugOvr {
             self.assistance_window.text_entry_changed = true;
         }
 
-        if self.usecase_recorder.lock().unwrap().show {
-            self.usecase_recorder
-                .lock()
-                .expect("Failed to lock usecase_recorder POISON")
-                .show_window(egui_context);
+        #[cfg(feature = "computeruse_record")]
+        {
+            if self.usecase_recorder.lock().unwrap().show {
+                self.usecase_recorder
+                    .lock()
+                    .expect("Failed to lock usecase_recorder POISON")
+                    .show_window(egui_context);
+            }
         }
 
-        if self.usecase_replay.lock().unwrap().show {
-            self.usecase_replay.lock().unwrap().visualize_next_step(
-                egui_context,
-                _default_gfx_backend,
-                glfw_backend,
-            );
-            self.usecase_replay.lock().unwrap().visualize_planning(
-                egui_context,
-                _default_gfx_backend,
-                glfw_backend,
-            );
-        }
-        if self.usecase_replay.lock().unwrap().show_dialog {
-            self.usecase_replay
-                .lock()
-                .unwrap()
-                .show_dialog(egui_context);
+        #[cfg(feature = "computeruse_replay")]
+        {
+            if self.usecase_replay.lock().unwrap().show {
+                self.usecase_replay.lock().unwrap().visualize_next_step(
+                    egui_context,
+                    _default_gfx_backend,
+                    glfw_backend,
+                );
+                self.usecase_replay.lock().unwrap().visualize_planning(
+                    egui_context,
+                    _default_gfx_backend,
+                    glfw_backend,
+                );
+            }
+            if self.usecase_replay.lock().unwrap().show_dialog {
+                self.usecase_replay
+                    .lock()
+                    .unwrap()
+                    .show_dialog(egui_context);
+            }
         }
 
         // here you decide if you want to be passthrough or not.

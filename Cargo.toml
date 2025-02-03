@@ -64,13 +64,15 @@ copyright = "Copyright (c) PlugOvr.ai 2024. All rights reserved."
 
 
 [features]
-default = ["three_d", "cs"]
+default = ["three_d", "cs", "computeruse_replay"]
 three_d = ["egui_overlay/three_d"]
 wgpu = ["egui_overlay/wgpu"]
 glow = ["egui_overlay/glow"]
 cuda = ["kalosm/cuda"]
 metal = ["kalosm/metal"]
 cs = ["plugovr_cs"]
+computeruse_replay = ["computeruse_record"]
+computeruse_record = []
 
 [dependencies]
 plugovr_cs = { path = "crates/plugovr_cs", optional = true }
