@@ -48,6 +48,7 @@ pub struct UseCaseReplay {
     pub model: Option<Gm<Mesh, ColorMaterial>>,
     pub llm_selector: Option<Arc<Mutex<LLMSelector>>>,
     instruction_dialog: String,
+    pub computing: Arc<Mutex<bool>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -199,6 +200,7 @@ impl UseCaseReplay {
             model: None,
             llm_selector: None,
             instruction_dialog: "".to_string(),
+            computing: Arc::new(Mutex::new(false)),
         }
     }
     pub fn show_dialog(&mut self, egui_context: &egui::Context) {
@@ -510,101 +512,111 @@ impl UseCaseReplay {
     }
     pub fn click(&mut self, instruction: String) {
         println!("click: {}", instruction);
-        let client = reqwest::blocking::Client::new();
+        *self.computing.lock().unwrap() = true;
+        let monitor1 = self.monitor1.clone();
+        let vec_instructions = self.vec_instructions.clone();
+        let index_instruction = self.index_instruction;
+        let index_action = self.index_action;
+        let computing = self.computing.clone();
+        std::thread::spawn(move || {
+            let client = reqwest::blocking::Client::new();
 
-        // Encode the image directly into the buffer
-        let mut buffer = Vec::new();
-        match self.monitor1.as_ref() {
-            Some(monitor) => {
-                if let Err(e) =
-                    monitor.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
-                {
-                    println!("Failed to encode image: {}", e);
+            // Encode the image directly into the buffer
+            let mut buffer = Vec::new();
+            match monitor1.as_ref() {
+                Some(monitor) => {
+                    if let Err(e) =
+                        monitor.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
+                    {
+                        println!("Failed to encode image: {}", e);
+                        return;
+                    }
+                }
+                None => {
+                    println!("No monitor screenshot available");
                     return;
                 }
             }
-            None => {
-                println!("No monitor screenshot available");
-                return;
-            }
-        }
 
-        let image_part = match reqwest::blocking::multipart::Part::bytes(buffer)
-            .file_name("image.png")
-            .mime_str("image/png")
-        {
-            Ok(part) => part,
-            Err(e) => {
-                println!("Failed to create multipart form: {}", e);
-                return;
-            }
-        };
-
-        let instruction_part = reqwest::blocking::multipart::Part::text(instruction);
-        let form = reqwest::blocking::multipart::Form::new()
-            .part("image", image_part)
-            .part("prompt", instruction_part);
-
-        // Send the POST request with error handling
-        let res = match client
-            .post("http://192.168.1.106:5001/get_location")
-            .multipart(form)
-            .send()
-        {
-            Ok(response) => response,
-            Err(e) => {
-                println!("Failed to send request: {}", e);
-                return;
-            }
-        };
-
-        // Parse the response text
-        let response_text = match res.text() {
-            Ok(text) => text,
-            Err(e) => {
-                println!("Failed to read response: {}", e);
-                return;
-            }
-        };
-
-        if let Some(coords) = parse_coordinates(&response_text) {
-            let (x1, y1, x2, y2) = coords;
-
-            // Get image dimensions
-            let width = self.monitor1.as_ref().unwrap().width() as f32;
-            let height = self.monitor1.as_ref().unwrap().height() as f32;
-
-            // Calculate center point and scale coordinates
-            let center_x = (x1 + x2) / 2.0;
-            let center_y = (y1 + y2) / 2.0;
-
-            self.click_position = Some((center_x, center_y));
-
-            if let Some(usecase_actions) = self
-                .vec_instructions
-                .lock()
-                .unwrap()
-                .get_mut(self.index_instruction)
+            let image_part = match reqwest::blocking::multipart::Part::bytes(buffer)
+                .file_name("image.png")
+                .mime_str("image/png")
             {
-                if self.index_action + 1 < usecase_actions.actions.len() {
-                    if let ActionTypes::ClickPosition(x, y) =
-                        usecase_actions.actions[self.index_action + 1]
-                    {
-                        usecase_actions.actions[self.index_action + 1] =
-                            ActionTypes::ClickPosition(center_x, center_y);
+                Ok(part) => part,
+                Err(e) => {
+                    println!("Failed to create multipart form: {}", e);
+                    return;
+                }
+            };
+
+            let instruction_part = reqwest::blocking::multipart::Part::text(instruction);
+            let form = reqwest::blocking::multipart::Form::new()
+                .part("image", image_part)
+                .part("prompt", instruction_part);
+
+            // Send the POST request with error handling
+            let res = match client
+                .post("http://192.168.1.106:5001/get_location")
+                .multipart(form)
+                .send()
+            {
+                Ok(response) => response,
+                Err(e) => {
+                    println!("Failed to send request: {}", e);
+                    return;
+                }
+            };
+
+            // Parse the response text
+            let response_text = match res.text() {
+                Ok(text) => text,
+                Err(e) => {
+                    println!("Failed to read response: {}", e);
+                    return;
+                }
+            };
+
+            if let Some(coords) = parse_coordinates(&response_text) {
+                let (x1, y1, x2, y2) = coords;
+
+                // Get image dimensions
+                let width = monitor1.as_ref().unwrap().width() as f32;
+                let height = monitor1.as_ref().unwrap().height() as f32;
+
+                // Calculate center point and scale coordinates
+                let center_x = (x1 + x2) / 2.0;
+                let center_y = (y1 + y2) / 2.0;
+
+                //self.click_position = Some((center_x, center_y));
+
+                if let Some(usecase_actions) =
+                    vec_instructions.lock().unwrap().get_mut(index_instruction)
+                {
+                    if index_action + 1 < usecase_actions.actions.len() {
+                        if let ActionTypes::ClickPosition(x, y) =
+                            usecase_actions.actions[index_action + 1]
+                        {
+                            usecase_actions.actions[index_action + 1] =
+                                ActionTypes::ClickPosition(center_x, center_y);
+                        } else {
+                            usecase_actions.actions.insert(
+                                index_action + 1,
+                                ActionTypes::ClickPosition(center_x, center_y),
+                            );
+                        }
                     } else {
-                        usecase_actions.actions.insert(
-                            self.index_action + 1,
-                            ActionTypes::ClickPosition(center_x, center_y),
-                        );
+                        usecase_actions
+                            .actions
+                            .push(ActionTypes::ClickPosition(center_x, center_y));
                     }
                 }
-            }
 
-            println!("Click position: {:?}", self.click_position);
-        } else {
-            println!("Failed to parse coordinates from response");
-        }
+                //println!("Click position: {:?}", self.click_position);
+            } else {
+                println!("Failed to parse coordinates from response");
+            }
+            *computing.lock().unwrap() = false;
+        });
     }
     pub fn step(&mut self) {
         if self.index_instruction >= self.vec_instructions.lock().unwrap().len() {
@@ -836,6 +848,8 @@ impl UseCaseReplay {
         {
             return;
         }
+        let computing = self.computing.lock().unwrap();
+        let computing_text = if *computing { "Computing..." } else { "" };
         egui::Window::new("Overlay")
             .interactable(false)
             .title_bar(false)
@@ -858,8 +872,11 @@ impl UseCaseReplay {
                         ui.add_sized(
                             egui::Vec2::new(400.0, 30.0),
                             egui::Label::new(
-                                egui::RichText::new(format!("PlugOvr: next action: {:?}", action))
-                                    .background_color(egui::Color32::from_rgb(255, 255, 255)),
+                                egui::RichText::new(format!(
+                                    "PlugOvr: next action: {:?} {}",
+                                    action, computing_text
+                                ))
+                                .background_color(egui::Color32::from_rgb(255, 255, 255)),
                             ),
                         );
                     });
