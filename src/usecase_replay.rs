@@ -123,23 +123,34 @@ impl UseCaseReplay {
         if !self.show_dialog {
             return;
         }
-
-        egui::Window::new("UseCaseReplay").show(egui_context, |ui| {
+        let mut instruction_dialog = self.instruction_dialog.clone();
+        let index_instruction = self.index_instruction.clone();
+        let index_action = self.index_action.clone();
+        let mut show_dialog = self.show_dialog;
+        let window = egui::Window::new("UseCaseReplay")
+            .movable(true)
+            .drag_to_scroll(true)
+            .interactable(true)
+            .title_bar(true)
+            .open(&mut show_dialog)
+            .collapsible(false);
+        window.show(egui_context, |ui| {
             ui.add(egui::Label::new("Agent Instructions"));
-            ui.add(egui::TextEdit::multiline(&mut self.instruction_dialog));
+            ui.add(egui::TextEdit::multiline(&mut instruction_dialog));
 
             if ui.button("Run").clicked() {
-                *self.index_instruction.lock().unwrap() = 0;
-                *self.index_action.lock().unwrap() = 0;
-                let instruction = self.instruction_dialog.clone();
-                //self.instruction_dialog = "".to_string();
+                *index_instruction.lock().unwrap() = 0;
+                *index_action.lock().unwrap() = 0;
 
-                self.execute_usecase(instruction);
+                self.execute_usecase(instruction_dialog.clone());
                 self.show_dialog = false;
                 self.show = true;
             }
         });
+        self.show_dialog = show_dialog;
+        self.instruction_dialog = instruction_dialog;
     }
+
     pub fn load_usecase(&mut self, filename: String) {
         let file = File::open(filename).unwrap();
         let usecase: UseCase = serde_json::from_reader(file).unwrap();

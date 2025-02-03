@@ -152,10 +152,6 @@ fn handle_text_selection(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // usecase_replay.lock().unwrap().execute_usecase(
-    //     "write email with gmail to test@plugovr.ai: subject test; Body Message".to_string(),
-    // );
-
     let text_entry = Arc::new(Mutex::new(false));
     let shortcut_window = Arc::new(Mutex::new(false));
     let control_pressed = Arc::new(Mutex::new(false));
@@ -173,12 +169,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(target_os = "macos")]
     let active_window = Arc::new(Mutex::new(ActiveWindow(0)));
 
-    let mut usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
-
-    usecase_replay
-        .lock()
-        .unwrap()
-        .load_usecase("gmail8_add_desc.json".to_string());
+    let usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
 
     std::env::set_var("RUST_LOG", "error");
 
