@@ -39,3 +39,32 @@ sudo apt install --no-install-recommends cmake build-essential libssl3 libdbus-1
 ```bash
 cargo run --release
 ```
+
+
+## ComputerUse
+
+Plugovr implements a ComputerUse Interface using Qwen2.5VL-7B. 
+
+spin up your local llm server for Qwen2.5VL-7B
+
+```bash
+vllm serve "Qwen/Qwen2.5-VL-7B-Instruct"
+```
+
+then run PlugOvr with the computeruse feature
+
+```bash
+cargo run --release --features computeruse
+```
+
+There are two shortcuts defined for computeruse:
+
+F4: to get a dialog to enter the instruction
+
+F2: to proceed the next action
+
+THIS IS A BETA FEATURE AND MIGHT NOT WORK AS EXPECTED.
+
+This is why we have no AUTO mode for computeruse yet. 
+
+Its all about getting experience about the capabilities of Qwen2.5VL-7B.
