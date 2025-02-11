@@ -189,7 +189,7 @@ impl UseCaseReplay {
         0
     }
 
-    pub fn generate_usecase_actions_openai(&mut self, instruction: &String) {
+    pub fn generate_usecase_actions(&mut self, instruction: &String) {
         let instruction = instruction.clone();
         self.grab_screenshot();
         let monitor1 = self.monitor1.clone();
@@ -338,7 +338,7 @@ impl UseCaseReplay {
                                 } else {
                                     response_text[json_start + 7..json_end].to_string()
                                 };
-                                println!("json_str: {}", json_str);
+                                
                                 vec_instructions.lock().unwrap().clear();
 
                                 // Clean the JSON string before parsing
@@ -360,7 +360,7 @@ impl UseCaseReplay {
                                         let fixed_json = serde_json::to_string_pretty(&parsed_json)
                                             .expect("Failed to format JSON");
 
-                                        println!("json_str fixed: {}", fixed_json);
+                                        
                                         match serde_json::from_str::<StepFormat>(&fixed_json) {
                                             Ok(StepFormat::SingleStep {
                                                 instruction,
@@ -417,159 +417,11 @@ impl UseCaseReplay {
         });
     }
 
-    pub fn generate_usecase_actions(&mut self, instruction: &String) {
-        let instruction = instruction.clone();
-        self.grab_screenshot();
-        let monitor1 = self.monitor1.clone();
-
-        let vec_instructions = self.vec_instructions.clone();
-        *self.index_instruction.lock().unwrap() = 0;
-        *self.index_action.lock().unwrap() = 0;
-        *self.computing_plan.lock().unwrap() = true;
-        let computing_plan = self.computing_plan.clone();
-        let server_url = self.server_url.clone();
-        std::thread::spawn(move || {
-            let mut retries = 0;
-            const MAX_RETRIES: u32 = 3;
-
-            while retries < MAX_RETRIES {
-                let client = reqwest::blocking::Client::new();
-
-                // Encode the image directly into the buffer
-                let mut buffer = Vec::new();
-                match monitor1.as_ref() {
-                    Some(monitor) => {
-                        if let Err(e) =
-                            monitor.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
-                        {
-                            println!("Failed to encode image: {}", e);
-                            return;
-                        }
-                    }
-                    None => {
-                        println!("No monitor screenshot available");
-                        return;
-                    }
-                }
-
-                let image_part = match reqwest::blocking::multipart::Part::bytes(buffer)
-                    .file_name("image.png")
-                    .mime_str("image/png")
-                {
-                    Ok(part) => part,
-                    Err(e) => {
-                        println!("Failed to create multipart form: {}", e);
-                        return;
-                    }
-                };
-
-                let instruction_part =
-                    reqwest::blocking::multipart::Part::text(instruction.clone());
-                let form = reqwest::blocking::multipart::Form::new()
-                    .part("image", image_part)
-                    .part("prompt", instruction_part);
-
-                // Send the POST request with error handling
-                let res = match client
-                    .post(format!("{}/get_execution_plan", server_url))
-                    .multipart(form)
-                    .send()
-                {
-                    Ok(response) => response,
-                    Err(e) => {
-                        println!("Failed to send request: {}", e);
-                        retries += 1;
-                        if retries < MAX_RETRIES {
-                            println!("Retrying... (attempt {} of {})", retries + 1, MAX_RETRIES);
-                            thread::sleep(time::Duration::from_secs(1));
-                            continue;
-                        }
-                        return;
-                    }
-                };
-
-                // Parse the response text
-                let response_text = match res.text() {
-                    Ok(text) => text,
-                    Err(e) => {
-                        println!("Failed to read response: {}", e);
-                        return;
-                    }
-                };
-                println!("response_text: {}", response_text);
-                let json_start = response_text.find("```json").unwrap_or(0);
-                let json_end = response_text.rfind("```").unwrap_or(0);
-                let json_str = if json_start == 0 && json_end == 0 {
-                    response_text.to_string()
-                } else {
-                    response_text[json_start + 7..json_end].to_string()
-                };
-                println!("json_str: {}", json_str);
-                vec_instructions.lock().unwrap().clear();
-                let json_str = repair_json::repair(json_str.clone()).unwrap_or(json_str);
-                let json_str = JsonFixer::fix(&json_str.clone()).unwrap_or(json_str);
-                // Parse JSON
-                let mut parsed_json: Value =
-                    serde_json::from_str(&json_str).expect("Failed to parse JSON");
-
-                // Output fixed JSON as a formatted string
-                let fixed_json =
-                    serde_json::to_string_pretty(&parsed_json).expect("Failed to format JSON");
-
-                println!("json_str fixed: {}", fixed_json);
-                match serde_json::from_str::<StepFormat>(&fixed_json) {
-                    Ok(StepFormat::SingleStep {
-                        instruction,
-                        actions,
-                    }) => {
-                        vec_instructions.lock().unwrap().push(UseCaseActions {
-                            instruction,
-                            actions: actions.into_iter().map(|a| a.into()).collect(),
-                        });
-                        break; // Success - exit the retry loop
-                    }
-                    Ok(StepFormat::MultiStep(steps)) => {
-                        vec_instructions.lock().unwrap().clear();
-                        let mut current_instruction = String::new();
-                        for step in steps {
-                            if let Some(instruction) = step.instruction {
-                                current_instruction = instruction;
-                            }
-                            if let Some(actions) = step.actions {
-                                vec_instructions.lock().unwrap().push(UseCaseActions {
-                                    instruction: current_instruction.clone(),
-                                    actions: actions.into_iter().map(|a| a.into()).collect(),
-                                });
-                            }
-                        }
-                        break; // Success - exit the retry loop
-                    }
-                    Err(e) => {
-                        println!("Failed to parse JSON response: {}", e);
-                        retries += 1;
-                        if retries < MAX_RETRIES {
-                            println!("Retrying... (attempt {} of {})", retries + 1, MAX_RETRIES);
-                            thread::sleep(time::Duration::from_secs(1));
-                            continue;
-                        }
-                    }
-                }
-            }
-
-            if retries >= MAX_RETRIES {
-                println!(
-                    "Failed to generate usecase actions after {} attempts",
-                    MAX_RETRIES
-                );
-            }
-            *computing_plan.lock().unwrap() = false;
-        });
-    }
     pub fn execute_usecase(&mut self, instruction: String) {
         //let index = self.identify_usecase(&instruction);
         //self.create_usecase_actions(index, &instruction);
 
-        self.generate_usecase_actions_openai(&instruction);
+        self.generate_usecase_actions(&instruction);
 
         // self.generate_usecase_actions(&instruction);
         // self.update_usecase_actions();
@@ -624,7 +476,7 @@ impl UseCaseReplay {
             }
         }
     }
-    pub fn click_openai(&mut self, instruction: String) {
+    pub fn click(&mut self, instruction: String) {
         println!("click_openai: {}", instruction);
         *self.computing_action.lock().unwrap() = true;
         let monitor1 = self.monitor1.clone();
@@ -704,7 +556,12 @@ impl UseCaseReplay {
                                     let index_action = *index_action.lock().unwrap();
                                     if let Some(usecase_actions) = vec_instructions.lock().unwrap().get_mut(index_instruction) {
                                         if index_action + 1 < usecase_actions.actions.len() {
-                                            usecase_actions.actions[index_action + 1] = ActionTypes::ClickPosition(center_x, center_y);
+                                            if let ActionTypes::ClickPosition(x, y) = usecase_actions.actions[index_action + 1] {
+                                                usecase_actions.actions[index_action + 1] = ActionTypes::ClickPosition(center_x, center_y);
+                                            }else{
+                                                usecase_actions.actions.insert(index_action + 1, ActionTypes::ClickPosition(center_x, center_y));
+                                            }
+
                                         } else {
                                             usecase_actions.actions.push(ActionTypes::ClickPosition(center_x, center_y));
                                         }
@@ -725,118 +582,6 @@ impl UseCaseReplay {
         });
     }
 
-    pub fn click(&mut self, instruction: String) {
-        println!("click: {}", instruction);
-        *self.computing_action.lock().unwrap() = true;
-        let monitor1 = self.monitor1.clone();
-        let vec_instructions = self.vec_instructions.clone();
-        let index_instruction = self.index_instruction.clone();
-        let index_action = self.index_action.clone();
-        let computing_action = self.computing_action.clone();
-        let server_url = self.server_url.clone();
-        std::thread::spawn(move || {
-            let client = reqwest::blocking::Client::new();
-
-            // Encode the image directly into the buffer
-            let mut buffer = Vec::new();
-            match monitor1.as_ref() {
-                Some(monitor) => {
-                    if let Err(e) =
-                        monitor.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
-                    {
-                        println!("Failed to encode image: {}", e);
-                        return;
-                    }
-                }
-                None => {
-                    println!("No monitor screenshot available");
-                    return;
-                }
-            }
-
-            let image_part = match reqwest::blocking::multipart::Part::bytes(buffer)
-                .file_name("image.png")
-                .mime_str("image/png")
-            {
-                Ok(part) => part,
-                Err(e) => {
-                    println!("Failed to create multipart form: {}", e);
-                    return;
-                }
-            };
-
-            let instruction_part = reqwest::blocking::multipart::Part::text(instruction);
-            let form = reqwest::blocking::multipart::Form::new()
-                .part("image", image_part)
-                .part("prompt", instruction_part);
-
-            // Send the POST request with error handling
-            let res = match client
-                .post(format!("{}/get_location", server_url))
-                .multipart(form)
-                .send()
-            {
-                Ok(response) => response,
-                Err(e) => {
-                    println!("Failed to send request: {}", e);
-                    return;
-                }
-            };
-
-            // Parse the response text
-            let response_text = match res.text() {
-                Ok(text) => text,
-                Err(e) => {
-                    println!("Failed to read response: {}", e);
-                    return;
-                }
-            };
-
-            if let Some(coords) = parse_coordinates(&response_text) {
-                let (x1, y1, x2, y2) = coords;
-
-                // Get image dimensions
-                let width = monitor1.as_ref().unwrap().width() as f32;
-                let height = monitor1.as_ref().unwrap().height() as f32;
-
-                // Calculate center point and scale coordinates
-                let center_x = (x1 + x2) / 2.0;
-                let center_y = (y1 + y2) / 2.0;
-
-                //self.click_position = Some((center_x, center_y));
-
-                let index_instruction = *index_instruction.lock().unwrap();
-                let index_action = *index_action.lock().unwrap();
-                if let Some(usecase_actions) =
-                    vec_instructions.lock().unwrap().get_mut(index_instruction)
-                {
-                    if index_action + 1 < usecase_actions.actions.len() {
-                        if let ActionTypes::ClickPosition(x, y) =
-                            usecase_actions.actions[index_action + 1]
-                        {
-                            usecase_actions.actions[index_action + 1] =
-                                ActionTypes::ClickPosition(center_x, center_y);
-                        } else {
-                            usecase_actions.actions.insert(
-                                index_action + 1,
-                                ActionTypes::ClickPosition(center_x, center_y),
-                            );
-                        }
-                    } else {
-                        usecase_actions
-                            .actions
-                            .push(ActionTypes::ClickPosition(center_x, center_y));
-                    }
-                }
-
-                //println!("Click position: {:?}", self.click_position);
-            } else {
-                println!("Failed to parse coordinates from response");
-            }
-            *computing_action.lock().unwrap() = false;
-            *index_action.lock().unwrap() += 1;
-        });
-    }
     pub fn step(&mut self) {
         let index_instruction = *self.index_instruction.lock().unwrap();
         let index_action = *self.index_action.lock().unwrap();
@@ -876,8 +621,7 @@ impl UseCaseReplay {
         match action {
             ActionTypes::Click(instruction) => {
                 self.grab_screenshot();
-                //self.click(instruction);
-                self.click_openai(instruction);
+                self.click(instruction);
             }
             ActionTypes::ClickPosition(x, y) => {
                 println!("click_position: {:?}", (x, y));
@@ -949,11 +693,11 @@ impl UseCaseReplay {
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         if position.1 > image_height - 50.0 {
             ui.painter().arrow(
-                egui::pos2(position.0, image_height - 50.0),
+                egui::pos2(position.0, image_height - 100.0),
                 egui::vec2(0.0, 50.0),
                 egui::Stroke::new(3.0, egui::Color32::from_rgb(255, 0, 0)),
             );
-        } else {
+        } else { 
             ui.painter().circle_filled(
                 //egui::pos2(position.0, position.1 - 1.0),
                 egui::pos2(position.0, position.1),
