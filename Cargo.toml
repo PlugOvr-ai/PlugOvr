@@ -71,6 +71,7 @@ glow = ["egui_overlay/glow"]
 cuda = ["kalosm/cuda"]
 metal = ["kalosm/metal"]
 cs = ["plugovr_cs"]
+computeruse = ["computeruse_replay", "computeruse_record"]
 computeruse_replay = ["computeruse_record"]
 computeruse_record = []
 
@@ -97,36 +98,33 @@ rdev = { version = "0.5.3", git = "https://github.com/AlexKnauth/rdev.git", rev 
 serde_json = "1.0.120"
 tokio = { version = "1.38.1", features = ["full", "macros"] }
 reqwest = { version = "0.12.7", features = ["blocking", "multipart", "json"] }
-itertools = "0.13.0"
+itertools = "0.14.0"
 
 egui_autocomplete = { version = "7.0.0" }
 serde = { version = "1.0.210", features = ["derive"] }
-dirs = "5.0.1"
+dirs = "6.0.0"
 
 #kalosm = { version = "0.3.2", features = ["language"] }
 kalosm = { git = "https://github.com/floneum/floneum.git", rev = "90b6af9e9fcdd13007586eb5771decb24004c43b", features = [
     "language",
 ] }
-strum = { version = "0.26.3", features = ["derive"] }
-strum_macros = "0.26.4"
+strum = { version = "0.27.0", features = ["derive"] }
+strum_macros = "0.27.0"
 similar = "2.6.0"
 image = { version = "0.25.5", features = ["png"] }
 image_24 = { package = "image", version = "0.24.9" }
 base64 = { version = "0.22.1" }
-#copypasta = "0.10.1"
 arboard = "3.4.1"
 ollama-rs = { version = "0.2.1", features = ["stream"] }
 regex = "1.11.1"
 tray-icon = "0.19.2"
 webbrowser = "1.0.3"
-xcap = "0.2.1"
+xcap = "0.3.1"
 uuid = { version = "1.11.0", features = ["v4"] }
 futures = "0.3.31"
 repair_json = "0.1.0"
 json-fixer = { version = "0.1.0", features = ["serde"] }
 openai_dive = "0.7"
-#mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs.git" }
-#anyhow = "1.0.95"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11-clipboard = "0.9.2"
