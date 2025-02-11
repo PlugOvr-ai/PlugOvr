@@ -3,6 +3,7 @@ use crate::usecase_recorder::{EventType, UseCase};
 use crate::llm::CloudModel;
 use crate::llm::LLMSelector;
 use crate::llm::LLMType;
+use base64;
 use egui_overlay::egui_render_three_d::{
     three_d::{self, ColorMaterial, Gm, Mesh},
     ThreeDBackend,
@@ -12,6 +13,13 @@ use futures;
 use gtk::false_;
 use image::{ImageBuffer, Rgba};
 use json_fixer::JsonFixer;
+use openai_dive::v1::api::Client;
+use openai_dive::v1::models::Gpt4Engine;
+
+use openai_dive::v1::resources::chat::{
+    ChatCompletionParametersBuilder, ChatMessage, ChatMessageContent, ChatMessageContentPart,
+    ChatMessageImageContentPart, ChatMessageTextContentPart, ImageUrlType,
+};
 #[cfg(feature = "cs")]
 use plugovr_cs::cloud_llm::call_aws_lambda;
 use rdev::{simulate, Button};
@@ -47,6 +55,8 @@ pub struct UseCaseReplay {
     pub computing_action: Arc<Mutex<bool>>,
     pub computing_plan: Arc<Mutex<bool>>,
     pub server_url: String,
+    pub image_width: u32,
+    pub image_height: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -105,6 +115,7 @@ impl From<Action> for ActionTypes {
 impl UseCaseReplay {
     pub fn new() -> Self {
         let server_url = load_server_url().unwrap_or("http://127.0.0.1:5001".to_string());
+
         Self {
             index_instruction: Arc::new(Mutex::new(0)),
             index_action: Arc::new(Mutex::new(0)),
@@ -121,7 +132,9 @@ impl UseCaseReplay {
             instruction_dialog: "".to_string(),
             computing_action: Arc::new(Mutex::new(false)),
             computing_plan: Arc::new(Mutex::new(false)),
-            server_url: server_url,
+            server_url,
+            image_width: 0,
+            image_height: 0,
         }
     }
     pub fn show_dialog(&mut self, egui_context: &egui::Context) {
@@ -156,7 +169,7 @@ impl UseCaseReplay {
                 .add(egui::TextEdit::singleline(&mut self.server_url))
                 .changed()
             {
-                save_server_url(&self.server_url);
+                let _ = save_server_url(&self.server_url);
             }
         });
         if self.show_dialog {
@@ -175,6 +188,232 @@ impl UseCaseReplay {
         //find the usecase that has the most similar instruction
         0
     }
+
+    pub fn generate_usecase_actions_openai(&mut self, instruction: &String) {
+        let instruction = instruction.clone();
+        self.grab_screenshot();
+        let monitor1 = self.monitor1.clone();
+
+        let vec_instructions = self.vec_instructions.clone();
+        *self.index_instruction.lock().unwrap() = 0;
+        *self.index_action.lock().unwrap() = 0;
+        *self.computing_plan.lock().unwrap() = true;
+        let computing_plan = self.computing_plan.clone();
+        // Relies on OPENAI_KEY and optionally OPENAI_BASE_URL.
+
+        let examplejson = r#"{
+            "instruction": "Write an email to Cornelius",
+            "actions": [
+              {
+                "type": "Click",
+                "value": "Click on the 'Google Chrome' icon."
+              },
+              {
+                "type": "Click",
+                "value": "Click on the search bar."
+              },
+              {
+                "type": "InsertText",
+                "value": "www.gmail.com"
+              },
+              {
+                "type": "KeyPress",
+                "value": "Return"
+              },
+              {
+                "type": "Click",
+                "value": "Click on 'Schreiben'."
+              },
+              {
+                "type": "Click",
+                "value": "Click on 'An'."
+              },
+              {
+                "type": "InsertText",
+                "value": "info@plugovr.ai"
+              },
+              {
+                "type": "KeyPress",
+                "value": "Return"
+              },
+              {
+                "type": "Click",
+                "value": "Click on 'Betreff'."
+              },
+              {
+                "type": "InsertText",
+                "value": "Hi"
+              },
+              {
+                "type": "Click",
+                "value": "Click on main message field."
+              },
+              {
+                "type": "KeyPress",
+                "value": "Home"
+              },
+              {
+                "type": "KeyPress",
+                "value": "PageUp"
+              },
+              {
+                "type": "InsertText",
+                "value": "Hi Cornelius"
+              },
+              {
+                "type": "Click",
+                "value": "Click on 'Senden'."
+              }
+            ]
+          }"#;
+
+        // println!("{}", examplejson);
+        let system_prompt = format!(
+            "You are an expert in controlling a computer, you can click on the screen, write text, and press keys. Here is an example of the JSON format: {} think about the steps to complete the task, jump to the beginning of large text boxes with Home and PageUp, output the actions in JSON format.",
+            examplejson
+        );
+
+        // Convert monitor1 to base64 string
+        let base64_image = match monitor1 {
+            Some(ref image) => {
+                let mut buffer = Vec::new();
+                image
+                    .write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
+                    .expect("Failed to encode image");
+                base64::encode(&buffer)
+            }
+            None => {
+                println!("No monitor screenshot available");
+                return;
+            }
+        };
+
+        // Create a new thread to handle the blocking operation
+        std::thread::spawn(move || {
+            // Create a new Tokio runtime for this thread
+            let rt = tokio::runtime::Runtime::new().unwrap();
+
+            // Execute the async code within the Tokio runtime
+            rt.block_on(async {
+                let mut client = Client::new("".to_string());
+                client.set_base_url("http://127.0.0.1:8000/v1");
+                if let Ok(parameters) = ChatCompletionParametersBuilder::default()
+                    .model("Qwen/Qwen2.5-VL-7B-Instruct".to_string())
+                    .messages(vec![
+                        ChatMessage::System {
+                            content: ChatMessageContent::Text(system_prompt.to_string()),
+                            name: None,
+                        },
+                        ChatMessage::User {
+                            content: ChatMessageContent::Text(instruction.to_string()),
+                            name: None,
+                        },
+                        ChatMessage::User {
+                            content: ChatMessageContent::ContentPart(vec![
+                                ChatMessageContentPart::Image(ChatMessageImageContentPart {
+                                    r#type: "image_url".to_string(),
+                                    image_url: ImageUrlType {
+                                        url: format!("data:image/png;base64,{}", base64_image),
+                                        detail: None,
+                                    },
+                                }),
+                            ]),
+                            name: None,
+                        },
+                    ])
+                    .max_completion_tokens(1024u32)
+                    .build()
+                {
+                    if let Ok(result) = client.chat().create(parameters).await {
+                        let msg = result.choices[0].message.clone();
+                        match msg {
+                            ChatMessage::Assistant { content, .. } => {
+                                let response_text = content.unwrap().to_string();
+                                println!("response_text: {}", response_text);
+                                let json_start = response_text.find("```json").unwrap_or(0);
+                                let json_end = response_text.rfind("```").unwrap_or(0);
+                                let json_str = if json_start == 0 && json_end == 0 {
+                                    response_text.to_string()
+                                } else {
+                                    response_text[json_start + 7..json_end].to_string()
+                                };
+                                println!("json_str: {}", json_str);
+                                vec_instructions.lock().unwrap().clear();
+                                let json_str =
+                                    repair_json::repair(json_str.clone()).unwrap_or(json_str);
+                                let json_str =
+                                    JsonFixer::fix(&json_str.clone()).unwrap_or(json_str);
+                                // Parse JSON
+                                let mut parsed_json: Value =
+                                    serde_json::from_str(&json_str).expect("Failed to parse JSON");
+
+                                // Output fixed JSON as a formatted string
+                                let fixed_json = serde_json::to_string_pretty(&parsed_json)
+                                    .expect("Failed to format JSON");
+
+                                println!("json_str fixed: {}", fixed_json);
+                                match serde_json::from_str::<StepFormat>(&fixed_json) {
+                                    Ok(StepFormat::SingleStep {
+                                        instruction,
+                                        actions,
+                                    }) => {
+                                        vec_instructions.lock().unwrap().push(UseCaseActions {
+                                            instruction,
+                                            actions: actions
+                                                .into_iter()
+                                                .map(|a| a.into())
+                                                .collect(),
+                                        });
+                                        //break; // Success - exit the retry loop
+                                    }
+                                    Ok(StepFormat::MultiStep(steps)) => {
+                                        vec_instructions.lock().unwrap().clear();
+                                        let mut current_instruction = String::new();
+                                        for step in steps {
+                                            if let Some(instruction) = step.instruction {
+                                                current_instruction = instruction;
+                                            }
+                                            if let Some(actions) = step.actions {
+                                                vec_instructions.lock().unwrap().push(
+                                                    UseCaseActions {
+                                                        instruction: current_instruction.clone(),
+                                                        actions: actions
+                                                            .into_iter()
+                                                            .map(|a| a.into())
+                                                            .collect(),
+                                                    },
+                                                );
+                                            }
+                                        }
+                                        //break; // Success - exit the retry loop
+                                    }
+                                    Err(e) => {
+                                        println!("Failed to parse JSON response: {}", e);
+                                        // retries += 1;
+                                        // if retries < MAX_RETRIES {
+                                        //     println!(
+                                        //         "Retrying... (attempt {} of {})",
+                                        //         retries + 1,
+                                        //         MAX_RETRIES
+                                        //     );
+                                        //     thread::sleep(time::Duration::from_secs(1));
+                                        //     continue;
+                                        // }
+                                    }
+                                }
+                            }
+                            _ => println!("Unexpected message type"),
+                        }
+                    } else {
+                        println!("Failed to create chat completion");
+                    }
+                } else {
+                    println!("Failed to build parameters");
+                }
+            });
+        });
+    }
+
     pub fn generate_usecase_actions(&mut self, instruction: &String) {
         let instruction = instruction.clone();
         self.grab_screenshot();
@@ -326,7 +565,10 @@ impl UseCaseReplay {
     pub fn execute_usecase(&mut self, instruction: String) {
         //let index = self.identify_usecase(&instruction);
         //self.create_usecase_actions(index, &instruction);
-        self.generate_usecase_actions(&instruction);
+
+        self.generate_usecase_actions_openai(&instruction);
+
+        // self.generate_usecase_actions(&instruction);
         // self.update_usecase_actions();
         //self.show = true;
     }
@@ -347,6 +589,8 @@ impl UseCaseReplay {
                         image.height() / 2,
                         image::imageops::FilterType::Lanczos3,
                     );
+                    self.image_width = image.width();
+                    self.image_height = image.height();
                     self.monitor1 = Some(resized);
                     // Save resized image to disk for debugging
                     let debug_path = format!("debug_screenshot.png");
@@ -366,6 +610,8 @@ impl UseCaseReplay {
                 }
                 #[cfg(any(target_os = "linux", target_os = "windows"))]
                 {
+                    self.image_width = image.width();
+                    self.image_height = image.height();
                     self.monitor1 = Some(image);
                 }
             } else if i == 1 {
@@ -592,13 +838,13 @@ impl UseCaseReplay {
         }
     }
 
-    fn draw_circle(ui: &mut egui::Ui, position: (f32, f32)) {
+    fn draw_circle(ui: &mut egui::Ui, position: (f32, f32), image_height: f32) {
         #[cfg(target_os = "macos")]
         let position = (position.0, position.1 - 40.0); //adjust for menubar in macos
         #[cfg(any(target_os = "linux", target_os = "windows"))]
-        if position.1 > 1040.0 {
+        if position.1 > image_height - 50.0 {
             ui.painter().arrow(
-                egui::pos2(position.0, 1040.0 - 50.0),
+                egui::pos2(position.0, image_height - 50.0),
                 egui::vec2(0.0, 50.0),
                 egui::Stroke::new(3.0, egui::Color32::from_rgb(255, 0, 0)),
             );
@@ -664,7 +910,10 @@ impl UseCaseReplay {
             .interactable(false)
             .title_bar(false)
             .default_pos(egui::Pos2::new(10.0, 1.0))
-            .min_size(egui::Vec2::new(1920.0 - 2.0, 1080.0 - 2.0))
+            .min_size(egui::Vec2::new(
+                self.image_width as f32 - 2.0,
+                self.image_height as f32 - 2.0,
+            ))
             .show(egui_context, |ui| {
                 egui::Area::new(egui::Id::new("overlay"))
                     .fixed_pos(egui::pos2(0.0, 0.0))
@@ -681,7 +930,7 @@ impl UseCaseReplay {
                             .clone();
 
                         ui.add_sized(
-                            egui::Vec2::new(400.0, 30.0),
+                            egui::Vec2::new(600.0, 30.0),
                             egui::Label::new(
                                 egui::RichText::new(format!(
                                     "PlugOvr: next action: {:?} {}",
@@ -701,7 +950,7 @@ impl UseCaseReplay {
                     .get(index_action)
                     .unwrap()
                 {
-                    Self::draw_circle(ui, (*x, *y));
+                    Self::draw_circle(ui, (*x, *y), self.image_height as f32);
                 }
             });
     }
@@ -719,7 +968,10 @@ impl UseCaseReplay {
             .interactable(false)
             .title_bar(false)
             .default_pos(egui::Pos2::new(10.0, 1.0))
-            .min_size(egui::Vec2::new(1920.0 - 2.0, 1080.0 - 2.0))
+            .min_size(egui::Vec2::new(
+                self.image_width as f32 - 2.0,
+                self.image_height as f32 - 2.0,
+            ))
             .show(egui_context, |ui| {
                 egui::Area::new(egui::Id::new("overlay"))
                     .fixed_pos(egui::pos2(0.0, 0.0))

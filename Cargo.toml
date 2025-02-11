@@ -124,6 +124,7 @@ uuid = { version = "1.11.0", features = ["v4"] }
 futures = "0.3.31"
 repair_json = "0.1.0"
 json-fixer = { version = "0.1.0", features = ["serde"] }
+openai_dive = "0.7"
 #mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs.git" }
 #anyhow = "1.0.95"
 
