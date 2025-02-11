@@ -76,7 +76,7 @@ computeruse_replay = ["computeruse_record"]
 computeruse_record = []
 
 [dependencies]
-plugovr_cs = { path = "crates/plugovr_cs", optional = true }
+#plugovr_cs = { path = "crates/plugovr_cs", optional = true }
 plugovr_types = { path = "crates/plugovr_types" }
 
 egui_overlay = { version = "0.8.0", git = "https://github.com/PlugOvr-ai/egui_overlay.git", default-features = false, features = [
