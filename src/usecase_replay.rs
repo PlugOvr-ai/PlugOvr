@@ -114,7 +114,7 @@ impl From<Action> for ActionTypes {
 
 impl UseCaseReplay {
     pub fn new() -> Self {
-        let server_url = load_server_url().unwrap_or("http://127.0.0.1:5001".to_string());
+        let server_url = load_server_url().unwrap_or("http://127.0.0.1:8000/v1".to_string());
 
         Self {
             index_instruction: Arc::new(Mutex::new(0)),
@@ -199,6 +199,7 @@ impl UseCaseReplay {
         *self.index_action.lock().unwrap() = 0;
         *self.computing_plan.lock().unwrap() = true;
         let computing_plan = self.computing_plan.clone();
+        let server_url = self.server_url.clone();
         // Relies on OPENAI_KEY and optionally OPENAI_BASE_URL.
 
         let examplejson = r#"{
@@ -296,7 +297,7 @@ impl UseCaseReplay {
             // Execute the async code within the Tokio runtime
             rt.block_on(async {
                 let mut client = Client::new("".to_string());
-                client.set_base_url("http://127.0.0.1:8000/v1");
+                client.set_base_url(&server_url);
                 if let Ok(parameters) = ChatCompletionParametersBuilder::default()
                     .model("Qwen/Qwen2.5-VL-7B-Instruct".to_string())
                     .messages(vec![
@@ -339,66 +340,67 @@ impl UseCaseReplay {
                                 };
                                 println!("json_str: {}", json_str);
                                 vec_instructions.lock().unwrap().clear();
-                                let json_str =
-                                    repair_json::repair(json_str.clone()).unwrap_or(json_str);
-                                let json_str =
-                                    JsonFixer::fix(&json_str.clone()).unwrap_or(json_str);
+
+                                // Clean the JSON string before parsing
+                                let cleaned_json = json_str
+                                    .replace('\n', " ")
+                                    .replace('\r', "")
+                                    .replace('\t', " ")
+                                    .replace(char::from(0), "")
+                                    .trim()
+                                    .to_string();
+
+                                let json_str = repair_json::repair(cleaned_json.clone()).unwrap_or(cleaned_json);
+                                let json_str = JsonFixer::fix(&json_str.clone()).unwrap_or(json_str);
+
                                 // Parse JSON
-                                let mut parsed_json: Value =
-                                    serde_json::from_str(&json_str).expect("Failed to parse JSON");
+                                match serde_json::from_str::<Value>(&json_str) {
+                                    Ok(mut parsed_json) => {
+                                        // Output fixed JSON as a formatted string
+                                        let fixed_json = serde_json::to_string_pretty(&parsed_json)
+                                            .expect("Failed to format JSON");
 
-                                // Output fixed JSON as a formatted string
-                                let fixed_json = serde_json::to_string_pretty(&parsed_json)
-                                    .expect("Failed to format JSON");
-
-                                println!("json_str fixed: {}", fixed_json);
-                                match serde_json::from_str::<StepFormat>(&fixed_json) {
-                                    Ok(StepFormat::SingleStep {
-                                        instruction,
-                                        actions,
-                                    }) => {
-                                        vec_instructions.lock().unwrap().push(UseCaseActions {
-                                            instruction,
-                                            actions: actions
-                                                .into_iter()
-                                                .map(|a| a.into())
-                                                .collect(),
-                                        });
-                                        //break; // Success - exit the retry loop
-                                    }
-                                    Ok(StepFormat::MultiStep(steps)) => {
-                                        vec_instructions.lock().unwrap().clear();
-                                        let mut current_instruction = String::new();
-                                        for step in steps {
-                                            if let Some(instruction) = step.instruction {
-                                                current_instruction = instruction;
+                                        println!("json_str fixed: {}", fixed_json);
+                                        match serde_json::from_str::<StepFormat>(&fixed_json) {
+                                            Ok(StepFormat::SingleStep {
+                                                instruction,
+                                                actions,
+                                            }) => {
+                                                vec_instructions.lock().unwrap().push(UseCaseActions {
+                                                    instruction,
+                                                    actions: actions
+                                                        .into_iter()
+                                                        .map(|a| a.into())
+                                                        .collect(),
+                                                });
                                             }
-                                            if let Some(actions) = step.actions {
-                                                vec_instructions.lock().unwrap().push(
-                                                    UseCaseActions {
-                                                        instruction: current_instruction.clone(),
-                                                        actions: actions
-                                                            .into_iter()
-                                                            .map(|a| a.into())
-                                                            .collect(),
-                                                    },
-                                                );
+                                            Ok(StepFormat::MultiStep(steps)) => {
+                                                vec_instructions.lock().unwrap().clear();
+                                                let mut current_instruction = String::new();
+                                                for step in steps {
+                                                    if let Some(instruction) = step.instruction {
+                                                        current_instruction = instruction;
+                                                    }
+                                                    if let Some(actions) = step.actions {
+                                                        vec_instructions.lock().unwrap().push(
+                                                            UseCaseActions {
+                                                                instruction: current_instruction.clone(),
+                                                                actions: actions
+                                                                    .into_iter()
+                                                                    .map(|a| a.into())
+                                                                    .collect(),
+                                                            },
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                println!("Failed to parse JSON: {}", e);
                                             }
                                         }
-                                        //break; // Success - exit the retry loop
                                     }
                                     Err(e) => {
-                                        println!("Failed to parse JSON response: {}", e);
-                                        // retries += 1;
-                                        // if retries < MAX_RETRIES {
-                                        //     println!(
-                                        //         "Retrying... (attempt {} of {})",
-                                        //         retries + 1,
-                                        //         MAX_RETRIES
-                                        //     );
-                                        //     thread::sleep(time::Duration::from_secs(1));
-                                        //     continue;
-                                        // }
+                                        println!("Failed to parse JSON: {}", e);
                                     }
                                 }
                             }
@@ -410,6 +412,7 @@ impl UseCaseReplay {
                 } else {
                     println!("Failed to build parameters");
                 }
+                *computing_plan.lock().unwrap() = false;
             });
         });
     }
@@ -621,6 +624,107 @@ impl UseCaseReplay {
             }
         }
     }
+    pub fn click_openai(&mut self, instruction: String) {
+        println!("click_openai: {}", instruction);
+        *self.computing_action.lock().unwrap() = true;
+        let monitor1 = self.monitor1.clone();
+        let vec_instructions = self.vec_instructions.clone();
+        let index_instruction = self.index_instruction.clone();
+        let index_action = self.index_action.clone();
+        let computing_action = self.computing_action.clone();
+        let server_url = self.server_url.clone();
+
+        // Create a new thread to handle the blocking operation
+        std::thread::spawn(move || {
+            // Create a new Tokio runtime for this thread
+            let rt = tokio::runtime::Runtime::new().unwrap();
+
+            // Execute the async code within the Tokio runtime
+            rt.block_on(async {
+                let mut client = Client::new("".to_string());
+                client.set_base_url(&server_url);
+
+                // Convert monitor1 to base64 string
+                let base64_image = match monitor1 {
+                    Some(ref image) => {
+                        let mut buffer = Vec::new();
+                        image
+                            .write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
+                            .expect("Failed to encode image");
+                        base64::encode(&buffer)
+                    }
+                    None => {
+                        println!("No monitor screenshot available");
+                        return;
+                    }
+                };
+
+                let system_prompt = "You are an expert in analyzing screenshots. Given an instruction and a screenshot, output the coordinates [x1, y1, x2, y2] of where to click. The coordinates should be in pixels and represent a bounding box around the target element.";
+                let system_prompt = "You are a helpful assistant";
+                if let Ok(parameters) = ChatCompletionParametersBuilder::default()
+                    .model("Qwen/Qwen2.5-VL-7B-Instruct".to_string())
+                    .messages(vec![
+                        ChatMessage::System {
+                            content: ChatMessageContent::Text(system_prompt.to_string()),
+                            name: None,
+                        },
+                        ChatMessage::User {
+                            content: ChatMessageContent::Text(instruction.to_string()+   " output its bbox coordinates using JSON format."),
+                            name: None,
+                        },
+                        ChatMessage::User {
+                            content: ChatMessageContent::ContentPart(vec![
+                                ChatMessageContentPart::Image(ChatMessageImageContentPart {
+                                    r#type: "image_url".to_string(),
+                                    image_url: ImageUrlType {
+                                        url: format!("data:image/png;base64,{}", base64_image),
+                                        detail: None,
+                                    },
+                                }),
+                            ]),
+                            name: None,
+                        },
+                    ])
+                    .max_completion_tokens(1024u32)
+                    .build()
+                {
+                    if let Ok(result) = client.chat().create(parameters).await {
+                        let msg = result.choices[0].message.clone();
+                        match msg {
+                            ChatMessage::Assistant { content, .. } => {
+                                let response_text = content.unwrap().to_string();
+                                println!("response_text: {}", response_text);
+                                
+                                if let Some(coords) = parse_coordinates(&response_text) {
+                                    let (x1, y1, x2, y2) = coords;
+                                    let center_x = (x1 + x2) / 2.0;
+                                    let center_y = (y1 + y2) / 2.0;
+
+                                    let index_instruction = *index_instruction.lock().unwrap();
+                                    let index_action = *index_action.lock().unwrap();
+                                    if let Some(usecase_actions) = vec_instructions.lock().unwrap().get_mut(index_instruction) {
+                                        if index_action + 1 < usecase_actions.actions.len() {
+                                            usecase_actions.actions[index_action + 1] = ActionTypes::ClickPosition(center_x, center_y);
+                                        } else {
+                                            usecase_actions.actions.push(ActionTypes::ClickPosition(center_x, center_y));
+                                        }
+                                    }
+                                }
+                            }
+                            _ => println!("Unexpected message type"),
+                        }
+                    } else {
+                        println!("Failed to create chat completion");
+                    }
+                } else {
+                    println!("Failed to build parameters");
+                }
+                *computing_action.lock().unwrap() = false;
+                *index_action.lock().unwrap() += 1;
+            });
+        });
+    }
+
     pub fn click(&mut self, instruction: String) {
         println!("click: {}", instruction);
         *self.computing_action.lock().unwrap() = true;
@@ -772,7 +876,8 @@ impl UseCaseReplay {
         match action {
             ActionTypes::Click(instruction) => {
                 self.grab_screenshot();
-                self.click(instruction);
+                //self.click(instruction);
+                self.click_openai(instruction);
             }
             ActionTypes::ClickPosition(x, y) => {
                 println!("click_position: {:?}", (x, y));
@@ -1003,13 +1108,23 @@ fn parse_coordinates_florence2(response: &str) -> Option<(f32, f32, f32, f32)> {
 }
 
 fn parse_coordinates(response: &str) -> Option<(f32, f32, f32, f32)> {
+    // Try the original format [x1, y1, x2, y2]
     let re = regex::Regex::new(r"\[\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\]").unwrap();
     if let Some(caps) = re.captures(response) {
         let coords: Vec<f32> = (1..=4).map(|i| caps[i].parse::<f32>().unwrap()).collect();
-        Some((coords[0], coords[1], coords[2], coords[3]))
-    } else {
-        None
+        return Some((coords[0], coords[1], coords[2], coords[3]));
     }
+
+    // Try the simplified format [x, y]
+    let re_simple = regex::Regex::new(r"\[\s*(\d+)\s*,\s*(\d+)\s*\]").unwrap();
+    if let Some(caps) = re_simple.captures(response) {
+        let x = caps[1].parse::<f32>().unwrap();
+        let y = caps[2].parse::<f32>().unwrap();
+        // Create a small bounding box around the point
+        return Some((x - 5.0, y - 5.0, x + 5.0, y + 5.0));
+    }
+
+    None
 }
 //#[cfg(not(target_os = "macos"))]
 fn mouse_click(x: f32, y: f32) {
