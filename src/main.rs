@@ -16,20 +16,30 @@ extern crate objc;
 
 mod llm;
 mod ui;
+#[cfg(feature = "computeruse_record")]
+mod usecase_recorder;
+#[cfg(feature = "computeruse_replay")]
+mod usecase_replay;
 mod version_check;
 mod window_handling;
 
-use window_handling::ActiveWindow;
-
-use std::error::Error;
-
+#[cfg(feature = "computeruse_record")]
+use crate::usecase_recorder::EventType;
+#[cfg(feature = "computeruse_replay")]
+use crate::usecase_replay::UseCaseReplay;
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+use enigo::{Keyboard, Settings};
 #[cfg(not(target_os = "macos"))]
 use rdev::listen;
 #[cfg(target_os = "macos")]
 use rdev::{listen, Event};
-
-#[cfg(any(target_os = "windows", target_os = "linux"))]
-use enigo::{Keyboard, Settings};
+use std::error::Error;
+use std::time::Duration;
+#[cfg(feature = "computeruse_record")]
+use usecase_recorder::Point;
+#[cfg(feature = "computeruse_record")]
+use usecase_recorder::UseCaseRecorder;
+use window_handling::ActiveWindow;
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 fn send_cmd_c() -> Result<(), Box<dyn std::error::Error>> {
@@ -53,6 +63,18 @@ fn send_cmd_c() -> Result<(), Box<dyn std::error::Error>> {
     Command::new("osascript")
         .arg("-e")
         .arg(r#"tell application "System Events" to keystroke "c" using command down"#)
+        .output()?;
+
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn send_cmd_v() -> Result<(), Box<dyn std::error::Error>> {
+    use std::process::Command;
+
+    Command::new("osascript")
+        .arg("-e")
+        .arg(r#"tell application "System Events" to keystroke "v" using command down"#)
         .output()?;
 
     Ok(())
@@ -141,6 +163,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let alt_pressed = Arc::new(Mutex::new(false));
     let text_entryfield_position = Arc::new(Mutex::new((0, 0)));
     let ai_context = Arc::new(Mutex::new(String::new()));
+    #[cfg(feature = "computeruse_record")]
+    let usecase_recorder = Arc::new(Mutex::new(UseCaseRecorder::new()));
 
     let mouse_position = Arc::new(Mutex::new((0, 0)));
     let hide_ui = Arc::new(Mutex::new(load_bool_config("hide_ui.txt", false)));
@@ -150,6 +174,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let active_window = Arc::new(Mutex::new(ActiveWindow(0)));
     #[cfg(target_os = "macos")]
     let active_window = Arc::new(Mutex::new(ActiveWindow(0)));
+
+    #[cfg(feature = "computeruse_replay")]
+    let usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
 
     std::env::set_var("RUST_LOG", "error");
 
@@ -168,15 +195,108 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let ai_context = ai_context.clone();
         let active_window = active_window.clone();
         let alt_pressed = alt_pressed.clone();
-
+        #[cfg(feature = "computeruse_record")]
+        let usecase_recorder = usecase_recorder.clone();
+        #[cfg(feature = "computeruse_replay")]
+        let usecase_replay = usecase_replay.clone();
         let _ = thread::Builder::new()
             .name("Key Event Thread".to_string())
             .spawn(move || {
+                let mut last_mouse_pos = Arc::new(Mutex::new((0, 0)));
                 // Add a delay of 2 seconds
                 std::thread::sleep(std::time::Duration::from_secs(2));
                 let callback = move |event: Event| {
+                    #[cfg(feature = "computeruse_record")]
+                    if usecase_recorder.lock().unwrap().recording {
+                        if usecase_recorder.lock().unwrap().add_image {
+                            if let Ok(mut recorder) = usecase_recorder.lock() {
+                                if recorder.add_image {
+                                    //let now = SystemTime::now();
+                                    if let Some(add_image_now) = recorder.add_image_now {
+                                        match add_image_now.elapsed() {
+                                            Ok(elapsed) => {
+                                                if elapsed > recorder.add_image_delay.unwrap() {
+                                                    // Take screenshot without holding the lock for too long
+                                                    recorder.add_image = false;
+                                                    recorder.add_image_delay = None;
+                                                    recorder.add_image_now = None;
+                                                    recorder.add_screenshot();
+                                                }
+                                            }
+                                            Err(e) => {
+                                                eprintln!("Error getting elapsed time: {:?}", e);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        match event.event_type {
+                            rdev::EventType::KeyPress(key) => {
+                                let key_str = serde_json::to_string(&key).unwrap();
+                                let key_str = key_str.replace("\"", "");
+                                let key_str = key_str.replace("Key", "");
+                                let key_str = key_str.replace("Dot", ".");
+                                let key_str = key_str.replace("Comma", ",");
+                                let key_str = key_str.replace("Semicolon", ";");
+                                let key_str = key_str.replace("Space", " ");
+                                usecase_recorder
+                                    .lock()
+                                    .unwrap()
+                                    .add_event(EventType::KeyDown(key_str));
+                            }
+                            rdev::EventType::KeyRelease(key) => {
+                                let key_str = serde_json::to_string(&key).unwrap();
+                                let key_str = key_str.replace("\"", "");
+                                let key_str = key_str.replace("Key", "");
+                                let key_str = key_str.replace("Dot", ".");
+                                let key_str = key_str.replace("Comma", ",");
+                                let key_str = key_str.replace("Semicolon", ";");
+                                let key_str = key_str.replace("Space", " ");
+                                usecase_recorder
+                                    .lock()
+                                    .unwrap()
+                                    .add_event(EventType::KeyUp(key_str));
+                            }
+                            rdev::EventType::MouseMove { x, y } => {
+                                *last_mouse_pos.lock().unwrap() = (x as i32, y as i32);
+                            }
+                            rdev::EventType::ButtonPress(button) => {
+                                if button == rdev::Button::Left {
+                                    let last_mouse_pos = last_mouse_pos.lock().unwrap();
+                                    usecase_recorder.lock().unwrap().add_event(EventType::Click(
+                                        Point {
+                                            x: last_mouse_pos.0 as f32,
+                                            y: last_mouse_pos.1 as f32,
+                                        },
+                                        "".to_string(),
+                                    ));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
                     match event.event_type {
                         rdev::EventType::KeyPress(key) => {
+                            #[cfg(feature = "computeruse_replay")]
+                            if key == rdev::Key::F2 {
+                                usecase_replay.lock().unwrap().step();
+                            }
+                            #[cfg(feature = "computeruse_replay")]
+                            if key == rdev::Key::F4 {
+                                usecase_replay.lock().unwrap().vec_instructions =
+                                    Arc::new(Mutex::new(vec![]));
+                                *usecase_replay
+                                    .lock()
+                                    .unwrap()
+                                    .index_instruction
+                                    .lock()
+                                    .unwrap() = 0;
+                                *usecase_replay.lock().unwrap().index_action.lock().unwrap() = 0;
+                                usecase_replay.lock().unwrap().show_dialog = true;
+                            }
                             if key == rdev::Key::ControlLeft {
                                 *control_pressed.lock().unwrap() = true;
                             }
@@ -223,7 +343,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                     *hide_ui_guard = !*hide_ui_guard;
                                     save_bool_config("hide_ui.txt", *hide_ui_guard);
                                 }
-
+                                #[cfg(any(target_os = "linux", target_os = "windows"))]
+                                #[cfg(feature = "computeruse_record")]
+                                if key == rdev::Key::KeyR
+                                    && *control_pressed.lock().unwrap()
+                                    && *alt_pressed.lock().unwrap()
+                                {
+                                    usecase_recorder.lock().unwrap().show = true;
+                                }
+                                #[cfg(target_os = "macos")]
+                                #[cfg(feature = "computeruse_record")]
+                                if key == rdev::Key::KeyR && *control_pressed.lock().unwrap() {
+                                    usecase_recorder.lock().unwrap().show = true;
+                                }
                                 if key == rdev::Key::Escape
                                     && (*text_entry.lock().unwrap()
                                         || *shortcut_window.lock().unwrap())
@@ -239,6 +371,33 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                         eprintln!("Failed to activate window: {:?}", e);
                                     }
                                 }
+                                // if key == rdev::Key::Escape
+                                //     && usecase_replay
+                                //         .lock()
+                                //         .unwrap()
+                                //         .vec_instructions
+                                //         .lock()
+                                //         .unwrap()
+                                //         .len()
+                                //         > 0
+                                // {
+                                //     usecase_replay
+                                //         .lock()
+                                //         .unwrap()
+                                //         .vec_instructions
+                                //         .lock()
+                                //         .unwrap()
+                                //         .clear();
+                                //     *usecase_replay
+                                //         .lock()
+                                //         .unwrap()
+                                //         .index_instruction
+                                //         .lock()
+                                //         .unwrap() = 0;
+                                //     *usecase_replay.lock().unwrap().index_action.lock().unwrap() =
+                                //         0;
+                                //     usecase_replay.lock().unwrap().show_dialog = false;
+                                // }
                             }
                         }
                         rdev::EventType::KeyRelease(key) => {
@@ -284,6 +443,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
             ai_context,
             active_window,
             shortcut_window,
+            #[cfg(feature = "computeruse_record")]
+            usecase_recorder,
+            #[cfg(feature = "computeruse_replay")]
+            usecase_replay,
         )
         .await;
     }

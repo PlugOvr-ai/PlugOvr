@@ -9,6 +9,7 @@ use plugovr_types::UserInfo;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use webbrowser;
+
 pub struct MainWindow {
     #[cfg(feature = "cs")]
     login_window: LoginWindow,
@@ -18,7 +19,7 @@ pub struct MainWindow {
     pub is_loading_user_info: Arc<Mutex<bool>>,
     pub version_msg: Arc<Mutex<String>>,
     pub version_msg_old: Arc<Mutex<String>>,
-    llm_selector: Arc<Mutex<LLMSelector>>,
+    pub llm_selector: Arc<Mutex<LLMSelector>>,
     show_template_editor: Arc<Mutex<bool>>,
     show_llm_selector: Arc<Mutex<bool>>,
     show_login_window: Arc<Mutex<bool>>,

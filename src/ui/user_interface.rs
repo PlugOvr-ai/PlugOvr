@@ -5,6 +5,10 @@ use crate::ui::screen_dimensions::get_screen_dimensions;
 use crate::ui::template_editor::create_prompt_templates;
 use crate::ui::template_editor::TemplateEditor;
 use crate::ui::template_editor::TemplateMap;
+#[cfg(feature = "computeruse_record")]
+use crate::usecase_recorder::UseCaseRecorder;
+#[cfg(feature = "computeruse_replay")]
+use crate::usecase_replay::UseCaseReplay;
 use crate::version_check;
 use crate::ActiveWindow;
 use egui_overlay::EguiOverlay;
@@ -39,16 +43,18 @@ pub async fn run(
 
     active_window: Arc<Mutex<ActiveWindow>>,
     shortcut_window: Arc<Mutex<bool>>,
+    #[cfg(feature = "computeruse_record")] usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
+    #[cfg(feature = "computeruse_replay")] usecase_replay: Arc<Mutex<UseCaseReplay>>,
 ) {
-    use tracing_subscriber::{fmt, prelude::*, EnvFilter};
-    // if RUST_LOG is not set, we will use the following filters
-    tracing_subscriber::registry()
-        .with(fmt::layer())
-        .with(
-            EnvFilter::try_from_default_env()
-                .unwrap_or(EnvFilter::new("debug,wgpu=warn,naga=warn")),
-        )
-        .init();
+    // use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+    // // if RUST_LOG is not set, we will use the following filters
+    // tracing_subscriber::registry()
+    //     .with(fmt::layer())
+    //     .with(
+    //         EnvFilter::try_from_default_env()
+    //             .unwrap_or(EnvFilter::new("debug,wgpu=warn,naga=warn")),
+    //     )
+    //     .init();
 
     let data = PlugOvr::new(
         text_entry,
@@ -57,6 +63,10 @@ pub async fn run(
         ai_context,
         active_window,
         shortcut_window,
+        #[cfg(feature = "computeruse_record")]
+        usecase_recorder,
+        #[cfg(feature = "computeruse_replay")]
+        usecase_replay,
     )
     .await;
     egui_overlay::start(data);
@@ -92,6 +102,10 @@ pub struct PlugOvr {
     menu_update_sender: Arc<Mutex<Option<Sender<MenuUpdate>>>>,
     last_login_state: Option<bool>,
     last_loading_state: Option<bool>,
+    #[cfg(feature = "computeruse_record")]
+    pub usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
+    #[cfg(feature = "computeruse_replay")]
+    pub usecase_replay: Arc<Mutex<UseCaseReplay>>,
 }
 
 impl PlugOvr {
@@ -104,6 +118,8 @@ impl PlugOvr {
 
         active_window: Arc<Mutex<ActiveWindow>>,
         shortcut_window: Arc<Mutex<bool>>,
+        #[cfg(feature = "computeruse_record")] usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
+        #[cfg(feature = "computeruse_replay")] usecase_replay: Arc<Mutex<UseCaseReplay>>,
     ) -> Self {
         let (screen_width, screen_height) = get_screen_dimensions();
         // Import the user_management module
@@ -171,6 +187,11 @@ impl PlugOvr {
 
         let llm_selector = Arc::new(Mutex::new(LLMSelector::new(user_info.clone())));
 
+        #[cfg(feature = "computeruse_replay")]
+        {
+            usecase_replay.lock().unwrap().llm_selector = Some(llm_selector.clone());
+        }
+
         let assistance_window = AssistanceWindow::new(
             active_window.clone(),
             text_entry.clone(),
@@ -218,6 +239,10 @@ impl PlugOvr {
             menu_update_sender: Arc::new(Mutex::new(None)),
             last_login_state: None,
             last_loading_state: None,
+            #[cfg(feature = "computeruse_record")]
+            usecase_recorder: usecase_recorder.clone(),
+            #[cfg(feature = "computeruse_replay")]
+            usecase_replay: usecase_replay.clone(),
         };
 
         plug_ovr.llm_selector.lock().unwrap().load_model().await;
@@ -499,7 +524,8 @@ impl EguiOverlay for PlugOvr {
             }
 
             self.updater_menu_item.set_enabled(true);
-            self.updater_menu_item.set_text(self.main_window.version_msg.lock().unwrap().clone());
+            self.updater_menu_item
+                .set_text(self.main_window.version_msg.lock().unwrap().clone());
             *self.main_window.version_msg_old.lock().unwrap() =
                 self.main_window.version_msg.lock().unwrap().clone();
         }
@@ -581,6 +607,38 @@ impl EguiOverlay for PlugOvr {
             && !self.assistance_window.shortcut_clicked
         {
             self.assistance_window.text_entry_changed = true;
+        }
+
+        #[cfg(feature = "computeruse_record")]
+        {
+            if self.usecase_recorder.lock().unwrap().show {
+                self.usecase_recorder
+                    .lock()
+                    .expect("Failed to lock usecase_recorder POISON")
+                    .show_window(egui_context);
+            }
+        }
+
+        #[cfg(feature = "computeruse_replay")]
+        {
+            if self.usecase_replay.lock().unwrap().show {
+                self.usecase_replay.lock().unwrap().visualize_next_step(
+                    egui_context,
+                    _default_gfx_backend,
+                    glfw_backend,
+                );
+                self.usecase_replay.lock().unwrap().visualize_planning(
+                    egui_context,
+                    _default_gfx_backend,
+                    glfw_backend,
+                );
+            }
+            if self.usecase_replay.lock().unwrap().show_dialog {
+                self.usecase_replay
+                    .lock()
+                    .unwrap()
+                    .show_dialog(egui_context);
+            }
         }
 
         // here you decide if you want to be passthrough or not.
