@@ -9,7 +9,7 @@ pub struct UseCaseRecorder {
     usecase: Option<UseCase>,
     usecase_name: String,
     usecase_instructions: String,
-    pub recording: bool,
+    pub recording: Arc<Mutex<bool>>,
     pub show: bool,
     pub add_image: bool,
     pub add_image_delay: Option<Duration>,
@@ -48,9 +48,10 @@ pub fn buffer_screenshots(
     screenshot_buffer1: Arc<Mutex<Option<String>>>,
     screenshot_buffer2: Arc<Mutex<Option<String>>>,
     screenshot_buffer3: Arc<Mutex<Option<String>>>,
+    recording: Arc<Mutex<bool>>,
 ) {
     let monitors = Monitor::all().unwrap();
-    while true {
+    while *recording.lock().unwrap() {
         for (i, monitor) in monitors.iter().enumerate() {
             let image: ImageBuffer<Rgba<u8>, Vec<u8>> = monitor.capture_image().unwrap();
             // Resize image to half size
@@ -59,7 +60,7 @@ pub fn buffer_screenshots(
                 &image,
                 image.width() / 2,
                 image.height() / 2,
-                image::imageops::FilterType::Lanczos3
+                image::imageops::FilterType::Lanczos3,
             );
             let base64 = UseCaseRecorder::image_buffer2base64(image);
             if i == 0 {
@@ -76,11 +77,12 @@ pub fn buffer_screenshots(
 
 impl UseCaseRecorder {
     pub fn new() -> Self {
+        let recording = Arc::new(Mutex::new(false));
         let mut instance = Self {
             usecase: None,
             usecase_name: String::new(),
             usecase_instructions: String::new(),
-            recording: false,
+            recording: recording.clone(),
             show: false,
             add_image: false,
             add_image_delay: None,
@@ -92,9 +94,9 @@ impl UseCaseRecorder {
         let screenshot_buffer1 = instance.screenshot_buffer1.clone();
         let screenshot_buffer2 = instance.screenshot_buffer2.clone();
         let screenshot_buffer3 = instance.screenshot_buffer3.clone();
-        thread::spawn(move || {
-            buffer_screenshots(screenshot_buffer1, screenshot_buffer2, screenshot_buffer3);
-        });
+
+        let recording_clone = recording.clone();
+
         instance
     }
     pub fn show_window(&mut self, ctx: &Context) {
@@ -189,8 +191,22 @@ impl UseCaseRecorder {
             usecase_steps: Vec::new(),
         });
         println!("Starting recording");
-        self.recording = true;
+        *self.recording.lock().unwrap() = true;
         self.show = false;
+
+        let screenshot_buffer1 = self.screenshot_buffer1.clone();
+        let screenshot_buffer2 = self.screenshot_buffer2.clone();
+        let screenshot_buffer3 = self.screenshot_buffer3.clone();
+        let recording = self.recording.clone();
+        thread::spawn(move || {
+            buffer_screenshots(
+                screenshot_buffer1,
+                screenshot_buffer2,
+                screenshot_buffer3,
+                recording,
+            );
+        });
+
         // let screenshot1 = self.screenshot_buffer1.lock().unwrap().clone();
         // if let Some(screenshot) = screenshot1 {
         //     self.add_event(EventType::Monitor1(screenshot));
@@ -213,7 +229,7 @@ impl UseCaseRecorder {
 
     fn stop_recording(&mut self) {
         println!("Stopping recording");
-        self.recording = false;
+        *self.recording.lock().unwrap() = false;
 
         // Compress keyboard events before saving
         if let Some(usecase) = &mut self.usecase {

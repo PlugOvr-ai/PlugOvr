@@ -207,7 +207,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 std::thread::sleep(std::time::Duration::from_secs(2));
                 let callback = move |event: Event| {
                     #[cfg(feature = "computeruse_record")]
-                    if usecase_recorder.lock().unwrap().recording {
+                    if *usecase_recorder.lock().unwrap().recording.lock().unwrap() {
                         if usecase_recorder.lock().unwrap().add_image {
                             if let Ok(mut recorder) = usecase_recorder.lock() {
                                 if recorder.add_image {
