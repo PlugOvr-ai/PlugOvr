@@ -202,7 +202,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let _ = thread::Builder::new()
             .name("Key Event Thread".to_string())
             .spawn(move || {
-                let mut last_mouse_pos = Arc::new(Mutex::new((0, 0)));
+                let last_mouse_pos = Arc::new(Mutex::new((0, 0)));
                 // Add a delay of 2 seconds
                 std::thread::sleep(std::time::Duration::from_secs(2));
                 let callback = move |event: Event| {

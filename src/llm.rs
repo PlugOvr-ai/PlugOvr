@@ -3,8 +3,6 @@ use kalosm::language::*;
 #[cfg(feature = "cs")]
 use plugovr_cs::cloud_llm::call_aws_lambda;
 use plugovr_types::{Screenshots, UserInfo};
-use reqwest::header::{HeaderMap, HeaderValue};
-use serde_json::json;
 use std::error::Error;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
@@ -21,7 +19,6 @@ use ollama_rs::{
     generation::options::GenerationOptions,
     Ollama,
 };
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fs::File;

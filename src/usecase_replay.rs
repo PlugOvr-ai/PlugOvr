@@ -41,7 +41,6 @@ pub struct UseCaseReplay {
     pub monitor3: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
     pub show: bool,
     pub show_dialog: bool,
-    pub model: Option<Gm<Mesh, ColorMaterial>>,
     pub llm_selector: Option<Arc<Mutex<LLMSelector>>>,
     instruction_dialog: String,
     pub computing_action: Arc<Mutex<bool>>,
@@ -117,7 +116,6 @@ impl UseCaseReplay {
             monitor3: None,
             show: false,
             show_dialog: false,
-            model: None,
             llm_selector: None,
             instruction_dialog: "".to_string(),
             computing_action: Arc::new(Mutex::new(false)),
@@ -257,11 +255,12 @@ impl UseCaseReplay {
         // Convert monitor1 to base64 string
         let base64_image = match monitor1 {
             Some(ref image) => {
+                use base64::Engine as _;
                 let mut buffer = Vec::new();
                 image
                     .write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
                     .expect("Failed to encode image");
-                base64::encode(&buffer)
+                base64::engine::general_purpose::STANDARD.encode(&buffer)
             }
             None => {
                 println!("No monitor screenshot available");
@@ -318,7 +317,7 @@ impl UseCaseReplay {
                                 } else {
                                     response_text[json_start + 7..json_end].to_string()
                                 };
-                                
+
                                 vec_instructions.lock().unwrap().clear();
 
                                 // Clean the JSON string before parsing
@@ -330,29 +329,32 @@ impl UseCaseReplay {
                                     .trim()
                                     .to_string();
 
-                                let json_str = repair_json::repair(cleaned_json.clone()).unwrap_or(cleaned_json);
-                                let json_str = JsonFixer::fix(&json_str.clone()).unwrap_or(json_str);
+                                let json_str = repair_json::repair(cleaned_json.clone())
+                                    .unwrap_or(cleaned_json);
+                                let json_str =
+                                    JsonFixer::fix(&json_str.clone()).unwrap_or(json_str);
 
                                 // Parse JSON
                                 match serde_json::from_str::<Value>(&json_str) {
-                                    Ok(mut parsed_json) => {
+                                    Ok(parsed_json) => {
                                         // Output fixed JSON as a formatted string
                                         let fixed_json = serde_json::to_string_pretty(&parsed_json)
                                             .expect("Failed to format JSON");
 
-                                        
                                         match serde_json::from_str::<StepFormat>(&fixed_json) {
                                             Ok(StepFormat::SingleStep {
                                                 instruction,
                                                 actions,
                                             }) => {
-                                                vec_instructions.lock().unwrap().push(UseCaseActions {
-                                                    instruction,
-                                                    actions: actions
-                                                        .into_iter()
-                                                        .map(|a| a.into())
-                                                        .collect(),
-                                                });
+                                                vec_instructions.lock().unwrap().push(
+                                                    UseCaseActions {
+                                                        instruction,
+                                                        actions: actions
+                                                            .into_iter()
+                                                            .map(|a| a.into())
+                                                            .collect(),
+                                                    },
+                                                );
                                             }
                                             Ok(StepFormat::MultiStep(steps)) => {
                                                 vec_instructions.lock().unwrap().clear();
@@ -364,7 +366,8 @@ impl UseCaseReplay {
                                                     if let Some(actions) = step.actions {
                                                         vec_instructions.lock().unwrap().push(
                                                             UseCaseActions {
-                                                                instruction: current_instruction.clone(),
+                                                                instruction: current_instruction
+                                                                    .clone(),
                                                                 actions: actions
                                                                     .into_iter()
                                                                     .map(|a| a.into())
@@ -475,7 +478,7 @@ impl UseCaseReplay {
             rt.block_on(async {
                 let mut client = Client::new("".to_string());
                 client.set_base_url(&server_url);
-
+                use base64::Engine as _;
                 // Convert monitor1 to base64 string
                 let base64_image = match monitor1 {
                     Some(ref image) => {
@@ -483,7 +486,7 @@ impl UseCaseReplay {
                         image
                             .write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
                             .expect("Failed to encode image");
-                        base64::encode(&buffer)
+                        base64::engine::general_purpose::STANDARD.encode(&buffer)
                     }
                     None => {
                         println!("No monitor screenshot available");
@@ -491,7 +494,7 @@ impl UseCaseReplay {
                     }
                 };
 
-                let system_prompt = "You are an expert in analyzing screenshots. Given an instruction and a screenshot, output the coordinates [x1, y1, x2, y2] of where to click. The coordinates should be in pixels and represent a bounding box around the target element.";
+                //let system_prompt = "You are an expert in analyzing screenshots. Given an instruction and a screenshot, output the coordinates [x1, y1, x2, y2] of where to click. The coordinates should be in pixels and represent a bounding box around the target element.";
                 let system_prompt = "You are a helpful assistant";
                 if let Ok(parameters) = ChatCompletionParametersBuilder::default()
                     .model("Qwen/Qwen2.5-VL-7B-Instruct".to_string())
@@ -501,7 +504,10 @@ impl UseCaseReplay {
                             name: None,
                         },
                         ChatMessage::User {
-                            content: ChatMessageContent::Text(instruction.to_string()+   " output its bbox coordinates using JSON format."),
+                            content: ChatMessageContent::Text(
+                                instruction.to_string()
+                                    + " output its bbox coordinates using JSON format.",
+                            ),
                             name: None,
                         },
                         ChatMessage::User {
@@ -526,7 +532,7 @@ impl UseCaseReplay {
                             ChatMessage::Assistant { content, .. } => {
                                 let response_text = content.unwrap().to_string();
                                 println!("response_text: {}", response_text);
-                                
+
                                 if let Some(coords) = parse_coordinates(&response_text) {
                                     let (x1, y1, x2, y2) = coords;
                                     let center_x = (x1 + x2) / 2.0;
@@ -534,16 +540,25 @@ impl UseCaseReplay {
 
                                     let index_instruction = *index_instruction.lock().unwrap();
                                     let index_action = *index_action.lock().unwrap();
-                                    if let Some(usecase_actions) = vec_instructions.lock().unwrap().get_mut(index_instruction) {
+                                    if let Some(usecase_actions) =
+                                        vec_instructions.lock().unwrap().get_mut(index_instruction)
+                                    {
                                         if index_action + 1 < usecase_actions.actions.len() {
-                                            if let ActionTypes::ClickPosition(x, y) = usecase_actions.actions[index_action + 1] {
-                                                usecase_actions.actions[index_action + 1] = ActionTypes::ClickPosition(center_x, center_y);
-                                            }else{
-                                                usecase_actions.actions.insert(index_action + 1, ActionTypes::ClickPosition(center_x, center_y));
+                                            if let ActionTypes::ClickPosition(_x, _y) =
+                                                usecase_actions.actions[index_action + 1]
+                                            {
+                                                usecase_actions.actions[index_action + 1] =
+                                                    ActionTypes::ClickPosition(center_x, center_y);
+                                            } else {
+                                                usecase_actions.actions.insert(
+                                                    index_action + 1,
+                                                    ActionTypes::ClickPosition(center_x, center_y),
+                                                );
                                             }
-
                                         } else {
-                                            usecase_actions.actions.push(ActionTypes::ClickPosition(center_x, center_y));
+                                            usecase_actions.actions.push(
+                                                ActionTypes::ClickPosition(center_x, center_y),
+                                            );
                                         }
                                     }
                                 }
@@ -658,7 +673,7 @@ impl UseCaseReplay {
         if let Some(actions) = self.vec_instructions.lock().unwrap().get(index_instruction) {
             if index_action >= actions.actions.len() {
                 self.show = false;
-            } else if let ActionTypes::KeyUp(key) = &actions.actions[index_action] {
+            } else if let ActionTypes::KeyUp(_key) = &actions.actions[index_action] {
                 trigger_step = true;
             }
         }
@@ -677,7 +692,7 @@ impl UseCaseReplay {
                 egui::vec2(0.0, 50.0),
                 egui::Stroke::new(3.0, egui::Color32::from_rgb(255, 0, 0)),
             );
-        } else { 
+        } else {
             ui.painter().circle_filled(
                 //egui::pos2(position.0, position.1 - 1.0),
                 egui::pos2(position.0, position.1),
@@ -702,12 +717,7 @@ impl UseCaseReplay {
             );
         }
     }
-    pub fn visualize_next_step(
-        &mut self,
-        egui_context: &egui::Context,
-        three_d_backend: &mut ThreeDBackend,
-        glfw_backend: &mut egui_overlay::egui_window_glfw_passthrough::GlfwBackend,
-    ) {
+    pub fn visualize_next_step(&mut self, egui_context: &egui::Context) {
         if self.vec_instructions.lock().unwrap().is_empty() {
             return;
         }
@@ -784,10 +794,7 @@ impl UseCaseReplay {
             });
     }
 
-    pub fn visualize_planning(
-        &mut self,
-        egui_context: &egui::Context,
-    ) {
+    pub fn visualize_planning(&mut self, egui_context: &egui::Context) {
         if !*self.computing_plan.lock().unwrap() {
             return;
         }
@@ -799,7 +806,7 @@ impl UseCaseReplay {
                 self.image_width as f32 - 2.0,
                 self.image_height as f32 - 2.0,
             ))
-            .show(egui_context, |ui| {
+            .show(egui_context, |_ui| {
                 egui::Area::new(egui::Id::new("overlay"))
                     .fixed_pos(egui::pos2(0.0, 0.0))
                     .show(egui_context, |ui| {
@@ -815,19 +822,19 @@ impl UseCaseReplay {
     }
 }
 // Add this helper function
-fn parse_coordinates_florence2(response: &str) -> Option<(f32, f32, f32, f32)> {
-    let re = regex::Regex::new(r"<loc_(\d+)>").unwrap();
-    let coords: Vec<f32> = re
-        .captures_iter(response)
-        .map(|cap| cap[1].parse::<f32>().unwrap() / 1000.0)
-        .collect();
+// fn parse_coordinates_florence2(response: &str) -> Option<(f32, f32, f32, f32)> {
+//     let re = regex::Regex::new(r"<loc_(\d+)>").unwrap();
+//     let coords: Vec<f32> = re
+//         .captures_iter(response)
+//         .map(|cap| cap[1].parse::<f32>().unwrap() / 1000.0)
+//         .collect();
 
-    if coords.len() == 4 {
-        Some((coords[0], coords[1], coords[2], coords[3]))
-    } else {
-        None
-    }
-}
+//     if coords.len() == 4 {
+//         Some((coords[0], coords[1], coords[2], coords[3]))
+//     } else {
+//         None
+//     }
+// }
 
 fn parse_coordinates(response: &str) -> Option<(f32, f32, f32, f32)> {
     // Try the original format [x1, y1, x2, y2]

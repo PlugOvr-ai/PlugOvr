@@ -2,8 +2,6 @@ use egui::Context;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime};
-#[cfg(target_os = "linux")]
-use x11rb::protocol::shape::Op;
 use xcap::Monitor;
 pub struct UseCaseRecorder {
     usecase: Option<UseCase>,
@@ -78,7 +76,7 @@ pub fn buffer_screenshots(
 impl UseCaseRecorder {
     pub fn new() -> Self {
         let recording = Arc::new(Mutex::new(false));
-        let mut instance = Self {
+        let instance = Self {
             usecase: None,
             usecase_name: String::new(),
             usecase_instructions: String::new(),
@@ -91,11 +89,6 @@ impl UseCaseRecorder {
             screenshot_buffer2: Arc::new(Mutex::new(None)),
             screenshot_buffer3: Arc::new(Mutex::new(None)),
         };
-        let screenshot_buffer1 = instance.screenshot_buffer1.clone();
-        let screenshot_buffer2 = instance.screenshot_buffer2.clone();
-        let screenshot_buffer3 = instance.screenshot_buffer3.clone();
-
-        let recording_clone = recording.clone();
 
         instance
     }
@@ -116,7 +109,7 @@ impl UseCaseRecorder {
         }
     }
     pub fn image_buffer2base64(image_buffer: ImageBuffer<Rgba<u8>, Vec<u8>>) -> String {
-        use base64::{engine::general_purpose, Engine as _};
+        use base64::Engine as _;
         let mut buf = vec![];
         image_buffer
             .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
@@ -162,7 +155,7 @@ impl UseCaseRecorder {
                 //self.add_image_now = Some(now);
             }
         }
-        if let EventType::Click(ref point, ref op) = event {
+        if let EventType::Click(ref _point, ref _op) = event {
             //self.add_image = true;
             //let now = SystemTime::now();
             //self.add_image_delay = Some(Duration::from_secs(1));

@@ -12,11 +12,9 @@ use crate::usecase_replay::UseCaseReplay;
 use crate::version_check;
 use crate::ActiveWindow;
 use egui_overlay::EguiOverlay;
-use plugovr_types::UserInfo;
 use std::collections::HashMap;
 use tray_icon::{
-    menu::AboutMetadata, menu::MenuEvent, menu::MenuItem, menu::MenuItemKind,
-    menu::PredefinedMenuItem, TrayIcon, TrayIconBuilder, TrayIconEvent,
+    menu::AboutMetadata, menu::MenuItem, menu::PredefinedMenuItem, TrayIcon, TrayIconBuilder,
 };
 
 #[cfg(feature = "three_d")]
@@ -29,7 +27,6 @@ use egui_overlay::egui_render_glow::GlowBackend as DefaultGfxBackend;
 #[cfg(feature = "wgpu")]
 use egui_overlay::egui_render_wgpu::WgpuBackend as DefaultGfxBackend;
 
-use crate::save_bool_config;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
@@ -263,7 +260,7 @@ fn load_icon_from_memory(icon_data: &[u8]) -> tray_icon::Icon {
     };
     tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to create icon")
 }
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, Sender};
 #[cfg(target_os = "linux")]
 fn run_once_tray_icon_init(
     tray_icon: &mut Option<TrayIcon>,
@@ -622,11 +619,10 @@ impl EguiOverlay for PlugOvr {
         #[cfg(feature = "computeruse_replay")]
         {
             if self.usecase_replay.lock().unwrap().show {
-                self.usecase_replay.lock().unwrap().visualize_next_step(
-                    egui_context,
-                    _default_gfx_backend,
-                    glfw_backend,
-                );
+                self.usecase_replay
+                    .lock()
+                    .unwrap()
+                    .visualize_next_step(egui_context);
                 self.usecase_replay
                     .lock()
                     .unwrap()
