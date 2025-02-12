@@ -1,31 +1,26 @@
-use crate::usecase_recorder::{EventType, UseCase};
+use crate::usecase_recorder::UseCase;
 
-use crate::llm::CloudModel;
 use crate::llm::LLMSelector;
-use crate::llm::LLMType;
-use base64;
+
 use egui_overlay::egui_render_three_d::{
-    three_d::{self, ColorMaterial, Gm, Mesh},
+    three_d::{ColorMaterial, Gm, Mesh},
     ThreeDBackend,
 };
-use futures;
+
 #[cfg(target_os = "linux")]
 use gtk::false_;
 use image::{ImageBuffer, Rgba};
 use json_fixer::JsonFixer;
 use openai_dive::v1::api::Client;
-use openai_dive::v1::models::Gpt4Engine;
 
 use openai_dive::v1::resources::chat::{
     ChatCompletionParametersBuilder, ChatMessage, ChatMessageContent, ChatMessageContentPart,
-    ChatMessageImageContentPart, ChatMessageTextContentPart, ImageUrlType,
+    ChatMessageImageContentPart, ImageUrlType,
 };
 #[cfg(feature = "cs")]
 use plugovr_cs::cloud_llm::call_aws_lambda;
-use rdev::{simulate, Button};
-use regex;
-use repair_json;
-use reqwest::multipart;
+use rdev::simulate;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs::File;
@@ -35,20 +30,17 @@ use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
-use tray_icon::menu::accelerator;
 use xcap::Monitor;
 
 pub struct UseCaseReplay {
     pub index_instruction: Arc<Mutex<usize>>,
     pub index_action: Arc<Mutex<usize>>,
     pub vec_instructions: Arc<Mutex<Vec<UseCaseActions>>>,
-    pub recorded_usecases: Vec<UseCase>,
     pub monitor1: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
     pub monitor2: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
     pub monitor3: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
     pub show: bool,
     pub show_dialog: bool,
-    pub click_position: Option<(f32, f32)>,
     pub model: Option<Gm<Mesh, ColorMaterial>>,
     pub llm_selector: Option<Arc<Mutex<LLMSelector>>>,
     instruction_dialog: String,
@@ -120,13 +112,11 @@ impl UseCaseReplay {
             index_instruction: Arc::new(Mutex::new(0)),
             index_action: Arc::new(Mutex::new(0)),
             vec_instructions: Arc::new(Mutex::new(vec![])),
-            recorded_usecases: vec![],
             monitor1: None,
             monitor2: None,
             monitor3: None,
             show: false,
             show_dialog: false,
-            click_position: None,
             model: None,
             llm_selector: None,
             instruction_dialog: "".to_string(),
@@ -179,18 +169,8 @@ impl UseCaseReplay {
         }
     }
 
-    pub fn load_usecase(&mut self, filename: String) {
-        let file = File::open(filename).unwrap();
-        let usecase: UseCase = serde_json::from_reader(file).unwrap();
-        self.recorded_usecases.push(usecase);
-    }
-    pub fn identify_usecase(&mut self, instruction: &String) -> usize {
-        //find the usecase that has the most similar instruction
-        0
-    }
-
-    pub fn generate_usecase_actions(&mut self, instruction: &String) {
-        let instruction = instruction.clone();
+    pub fn generate_usecase_actions(&mut self, instruction: &str) {
+        let instruction = instruction.to_string();
         self.grab_screenshot();
         let monitor1 = self.monitor1.clone();
 
@@ -807,8 +787,6 @@ impl UseCaseReplay {
     pub fn visualize_planning(
         &mut self,
         egui_context: &egui::Context,
-        three_d_backend: &mut ThreeDBackend,
-        glfw_backend: &mut egui_overlay::egui_window_glfw_passthrough::GlfwBackend,
     ) {
         if !*self.computing_plan.lock().unwrap() {
             return;

@@ -627,11 +627,10 @@ impl EguiOverlay for PlugOvr {
                     _default_gfx_backend,
                     glfw_backend,
                 );
-                self.usecase_replay.lock().unwrap().visualize_planning(
-                    egui_context,
-                    _default_gfx_backend,
-                    glfw_backend,
-                );
+                self.usecase_replay
+                    .lock()
+                    .unwrap()
+                    .visualize_planning(egui_context);
             }
             if self.usecase_replay.lock().unwrap().show_dialog {
                 self.usecase_replay

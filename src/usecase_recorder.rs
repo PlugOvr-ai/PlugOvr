@@ -141,11 +141,11 @@ impl UseCaseRecorder {
         }
     }
     pub fn add_event(&mut self, event: EventType) {
-        if let EventType::Monitor1(ref base64) = event {
+        if let EventType::Monitor1(ref _base64) = event {
             println!("Adding monitor1 image");
-        } else if let EventType::Monitor2(ref base64) = event {
+        } else if let EventType::Monitor2(ref _base64) = event {
             println!("Adding monitor2 image");
-        } else if let EventType::Monitor3(ref base64) = event {
+        } else if let EventType::Monitor3(ref _base64) = event {
             println!("Adding monitor3 image");
         } else {
             println!("Adding event: {:?}", event);
