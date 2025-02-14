@@ -246,6 +246,72 @@ impl UseCaseReplay {
             ]
           }"#;
 
+        let example_calendar_json = r#"{
+            "instruction": "Add a new event to the calendar 'Plugovr Meeting'",
+            "actions": [
+              {
+                "type": "Click",
+                "value": "Click on the 'Google Chrome' icon."
+              },
+              {
+                "type": "Click",
+                "value": "Click on the search bar."
+              },
+              {
+                "type": "InsertText",
+                "value": "calendar.google.com"
+              },
+              {
+                "type": "KeyPress",
+                "value": "Return"
+              },
+              {
+                "type": "Click",
+                "value": "Click on 'Eintragen'."
+              },
+              {
+                "type": "Click",
+                "value": "Click on 'Termin'."
+              },
+              {
+                "type": "Click",
+                "value": "Click on 'Titel hinzufügen'."
+              },              
+              {
+                "type": "InsertText",
+                "value": "Plugovr Meeting"
+              },
+              {
+                "type": "Click",
+                "value": "Click on 'Termin'."
+              },
+              {
+                "type": "InsertText",
+                "value": "2025-03-01"
+              },
+              {
+                "type": "Click",
+                "value": "Click on Starttime."
+              },
+              {
+                "type": "InsertText",
+                "value": "10:00"
+              },
+              {
+                "type": "Click",
+                "value": "Click on Endtime."
+              },
+              {
+                "type": "InsertText",
+                "value": "11:00"
+              },              
+              {
+                "type": "Click",
+                "value": "Click on 'Speichern'."
+              }
+            ]
+          }"#;
+
         // println!("{}", examplejson);
         let system_prompt = format!(
             "You are an expert in controlling a computer, you can click on the screen, write text, and press keys. Here is an example of the JSON format: {} think about the steps to complete the task, jump to the beginning of large text boxes with Home and PageUp, output the actions in JSON format.",
@@ -302,6 +368,7 @@ impl UseCaseReplay {
                         },
                     ])
                     .max_completion_tokens(1024u32)
+                    .temperature(0.0)
                     .build()
                 {
                     if let Ok(result) = client.chat().create(parameters).await {
@@ -310,6 +377,9 @@ impl UseCaseReplay {
                             ChatMessage::Assistant { content, .. } => {
                                 let response_text = content.unwrap().to_string();
                                 println!("response_text: {}", response_text);
+                                // Save response text to file
+                                // let mut file = File::create("response.txt").unwrap();
+                                // file.write_all(response_text.as_bytes()).unwrap();
                                 let json_start = response_text.find("```json").unwrap_or(0);
                                 let json_end = response_text.rfind("```").unwrap_or(0);
                                 let json_str = if json_start == 0 && json_end == 0 {
@@ -524,6 +594,7 @@ impl UseCaseReplay {
                         },
                     ])
                     .max_completion_tokens(1024u32)
+                    .temperature(0.0)
                     .build()
                 {
                     if let Ok(result) = client.chat().create(parameters).await {
