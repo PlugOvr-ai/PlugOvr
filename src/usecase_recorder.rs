@@ -94,9 +94,12 @@ impl UseCaseRecorder {
     }
     pub fn show_window(&mut self, ctx: &Context) {
         if self.show {
-            egui::Window::new("Use Case Recorder").show(ctx, |ui| {
+            let mut show = self.show;
+            egui::Window::new("Use Case Recorder").open(&mut show).show(ctx, |ui| {
                 ui.label("Use Case Recorder");
+                ui.label("Filename");
                 ui.add(egui::TextEdit::multiline(&mut self.usecase_name));
+                ui.label("Instructions");
                 ui.add(egui::TextEdit::multiline(&mut self.usecase_instructions));
 
                 if ui.button("Record").clicked() {
@@ -106,6 +109,7 @@ impl UseCaseRecorder {
                     self.stop_recording();
                 }
             });
+            self.show = show;
         }
     }
     pub fn image_buffer2base64(image_buffer: ImageBuffer<Rgba<u8>, Vec<u8>>) -> String {
