@@ -18,6 +18,8 @@ mod llm;
 mod ui;
 #[cfg(feature = "computeruse_record")]
 mod usecase_recorder;
+#[cfg(feature = "computeruse_editor")]
+mod usecase_editor;
 #[cfg(feature = "computeruse_replay")]
 mod usecase_replay;
 mod version_check;
@@ -39,6 +41,8 @@ use std::time::Duration;
 use usecase_recorder::Point;
 #[cfg(feature = "computeruse_record")]
 use usecase_recorder::UseCaseRecorder;
+#[cfg(feature = "computeruse_editor")]
+use usecase_editor::UsecaseEditor;
 use window_handling::ActiveWindow;
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
@@ -165,7 +169,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let ai_context = Arc::new(Mutex::new(String::new()));
     #[cfg(feature = "computeruse_record")]
     let usecase_recorder = Arc::new(Mutex::new(UseCaseRecorder::new()));
-
+    #[cfg(feature = "computeruse_editor")]
+    let usecase_editor = Arc::new(Mutex::new(UsecaseEditor::new()));
     let mouse_position = Arc::new(Mutex::new((0, 0)));
     let hide_ui = Arc::new(Mutex::new(load_bool_config("hide_ui.txt", false)));
     #[cfg(target_os = "linux")]
@@ -447,6 +452,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             usecase_recorder,
             #[cfg(feature = "computeruse_replay")]
             usecase_replay,
+            #[cfg(feature = "computeruse_editor")]
+            usecase_editor,
         )
         .await;
     }

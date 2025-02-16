@@ -9,6 +9,8 @@ use crate::ui::template_editor::TemplateMap;
 use crate::usecase_recorder::UseCaseRecorder;
 #[cfg(feature = "computeruse_replay")]
 use crate::usecase_replay::UseCaseReplay;
+#[cfg(feature = "computeruse_editor")]
+use crate::usecase_editor::UsecaseEditor;
 use crate::version_check;
 use crate::ActiveWindow;
 use egui_overlay::EguiOverlay;
@@ -32,6 +34,8 @@ use std::sync::{Arc, Mutex};
 
 #[cfg(not(any(feature = "three_d", feature = "wgpu", feature = "glow")))]
 compile_error!("you must enable either `three_d`, `wgpu` or `glow` feature to run this example");
+
+
 pub async fn run(
     text_entry: Arc<Mutex<bool>>,
     text_entryfield_position: Arc<Mutex<(i32, i32)>>,
@@ -42,6 +46,7 @@ pub async fn run(
     shortcut_window: Arc<Mutex<bool>>,
     #[cfg(feature = "computeruse_record")] usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
     #[cfg(feature = "computeruse_replay")] usecase_replay: Arc<Mutex<UseCaseReplay>>,
+    #[cfg(feature = "computeruse_editor")] usecase_editor: Arc<Mutex<UsecaseEditor>>,
 ) {
     // use tracing_subscriber::{fmt, prelude::*, EnvFilter};
     // // if RUST_LOG is not set, we will use the following filters
@@ -64,6 +69,8 @@ pub async fn run(
         usecase_recorder,
         #[cfg(feature = "computeruse_replay")]
         usecase_replay,
+        #[cfg(feature = "computeruse_editor")]
+        usecase_editor,
     )
     .await;
     egui_overlay::start(data);
@@ -103,6 +110,8 @@ pub struct PlugOvr {
     pub usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
     #[cfg(feature = "computeruse_replay")]
     pub usecase_replay: Arc<Mutex<UseCaseReplay>>,
+    #[cfg(feature = "computeruse_editor")]
+    pub usecase_editor: Arc<Mutex<UsecaseEditor>>,
 }
 
 impl PlugOvr {
@@ -117,6 +126,7 @@ impl PlugOvr {
         shortcut_window: Arc<Mutex<bool>>,
         #[cfg(feature = "computeruse_record")] usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
         #[cfg(feature = "computeruse_replay")] usecase_replay: Arc<Mutex<UseCaseReplay>>,
+        #[cfg(feature = "computeruse_editor")] usecase_editor: Arc<Mutex<UsecaseEditor>>,
     ) -> Self {
         let (screen_width, screen_height) = get_screen_dimensions();
         // Import the user_management module
@@ -227,6 +237,8 @@ impl PlugOvr {
                 prompt_templates.clone(),
                 llm_selector.clone(),
                 version_msg.clone(),
+                #[cfg(feature = "computeruse_editor")]
+                usecase_editor.clone(),
             ),
             assistance_window,
             tray_icon: None,
@@ -240,6 +252,8 @@ impl PlugOvr {
             usecase_recorder: usecase_recorder.clone(),
             #[cfg(feature = "computeruse_replay")]
             usecase_replay: usecase_replay.clone(),
+            #[cfg(feature = "computeruse_editor")]
+            usecase_editor: usecase_editor.clone(),
         };
 
         plug_ovr.llm_selector.lock().unwrap().load_model().await;
@@ -333,7 +347,7 @@ fn create_menu(
     let icon = load_icon_from_memory(icon_data);
 
     let template_i = MenuItem::new("Template Editor", true, None);
-
+    let usecase_editor_i = MenuItem::new("Usecase Editor", true, None);
     let llm_selector_i = MenuItem::new("LLM Selector", true, None);
     let quit_i = MenuItem::new("Quit", true, None);
     let about_icon = tray_icon::menu::Icon::from_rgba(icon_data_menu, 32, 32).unwrap();
@@ -346,6 +360,7 @@ fn create_menu(
         &llm_selector_i,
 
         &template_i,
+        &usecase_editor_i,
         &PredefinedMenuItem::separator(),
         &PredefinedMenuItem::about(
             Some("How to"),
@@ -381,6 +396,7 @@ fn create_menu(
         &llm_selector_i,
 
         &template_i,
+        &usecase_editor_i,
         &PredefinedMenuItem::separator(),
         &PredefinedMenuItem::about(
             Some("How to"),
@@ -419,6 +435,10 @@ fn create_menu(
     map.insert("Login".to_string(), login_menu_item.id().0.to_string());
     map.insert("Quit".to_string(), quit_i.id().0.to_string());
     map.insert("Updater".to_string(), updater_menu_item.id().0.to_string());
+    map.insert(
+        "Usecase Editor".to_string(),
+        usecase_editor_i.id().0.to_string(),
+    );
     (tray_menu, icon, map)
 }
 #[cfg(not(target_os = "linux"))]
@@ -651,5 +671,7 @@ impl EguiOverlay for PlugOvr {
         if !self.assistance_window.show {
             *self.ai_answer.lock().unwrap() = String::new();
         }
+
+
     }
 }
