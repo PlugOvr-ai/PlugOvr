@@ -115,6 +115,14 @@ impl UseCaseRecorder {
     pub fn image_buffer2base64(image_buffer: ImageBuffer<Rgba<u8>, Vec<u8>>) -> String {
         use base64::Engine as _;
         let mut buf = vec![];
+        #[cfg(target_os = "macos")]
+        let image_buffer = image::imageops::resize(
+            &image_buffer, 
+            image_buffer.width() / 2,
+            image_buffer.height() / 2,
+            image::imageops::FilterType::Triangle
+        );
+        
         image_buffer
             .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
             .unwrap();
@@ -293,6 +301,28 @@ impl UseCaseRecorder {
                                 c = c.to_uppercase().next().unwrap_or(c);
                             } else {
                                 c = c.to_lowercase().next().unwrap_or(c);
+                            }
+                            if shift_pressed {
+                                if c == '.' {
+                                    c = ':';
+                                }
+                                if c == ',' {
+                                    c = ';';
+                                }
+                                // if c == '/' {
+                                //     c = '?';
+                                // }
+                                // if c == '-' {
+                                //     c = '_';
+                                // }
+                                // if c == '=' {
+                                //     c = '+';
+                                // }
+                                // if c == '[' {
+                                //     c = '{';
+                                // }
+                                
+                                
                             }
                             result.push(c);
                         }

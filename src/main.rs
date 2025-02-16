@@ -246,6 +246,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                 let key_str = key_str.replace("Comma", ",");
                                 let key_str = key_str.replace("Semicolon", ";");
                                 let key_str = key_str.replace("Space", " ");
+                                let key_str = key_str.replace("Num", "");
                                 usecase_recorder
                                     .lock()
                                     .unwrap()
@@ -259,6 +260,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                 let key_str = key_str.replace("Comma", ",");
                                 let key_str = key_str.replace("Semicolon", ";");
                                 let key_str = key_str.replace("Space", " ");
+                                let key_str = key_str.replace("Num", "");
                                 usecase_recorder
                                     .lock()
                                     .unwrap()

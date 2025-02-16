@@ -5,22 +5,12 @@ use rfd;
 use image::GenericImageView;
 use crate::usecase_recorder::{EventType, UseCase, Point};
 
+#[derive(Default)]
 pub struct UsecaseEditor {
     usecase: Option<UseCase>,
     current_step: usize,
     file_path: Option<PathBuf>,
     show_file_dialog: bool,
-}
-
-impl Default for UsecaseEditor {
-    fn default() -> Self {
-        Self {
-            usecase: None,
-            current_step: 0,
-            file_path: None,
-            show_file_dialog: false,
-        }
-    }
 }
 
 impl UsecaseEditor {
