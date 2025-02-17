@@ -347,6 +347,7 @@ fn create_menu(
     let icon = load_icon_from_memory(icon_data);
 
     let template_i = MenuItem::new("Template Editor", true, None);
+    #[cfg(feature = "computeruse_editor")]
     let usecase_editor_i = MenuItem::new("Usecase Editor", true, None);
     let llm_selector_i = MenuItem::new("LLM Selector", true, None);
     let quit_i = MenuItem::new("Quit", true, None);
@@ -396,6 +397,7 @@ fn create_menu(
         &llm_selector_i,
 
         &template_i,
+        #[cfg(feature = "computeruse_editor")]
         &usecase_editor_i,
         &PredefinedMenuItem::separator(),
         &PredefinedMenuItem::about(
@@ -435,6 +437,7 @@ fn create_menu(
     map.insert("Login".to_string(), login_menu_item.id().0.to_string());
     map.insert("Quit".to_string(), quit_i.id().0.to_string());
     map.insert("Updater".to_string(), updater_menu_item.id().0.to_string());
+    #[cfg(feature = "computeruse_editor")]
     map.insert(
         "Usecase Editor".to_string(),
         usecase_editor_i.id().0.to_string(),
