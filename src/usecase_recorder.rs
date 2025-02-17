@@ -53,13 +53,13 @@ pub fn buffer_screenshots(
         for (i, monitor) in monitors.iter().enumerate() {
             let image: ImageBuffer<Rgba<u8>, Vec<u8>> = monitor.capture_image().unwrap();
             // Resize image to half size
-            #[cfg(target_os = "macos")]
-            let image = image::imageops::resize(
-                &image,
-                image.width() / 2,
-                image.height() / 2,
-                image::imageops::FilterType::Lanczos3,
-            );
+            // #[cfg(target_os = "macos")]
+            // let image = image::imageops::resize(
+            //     &image,
+            //     image.width() / 2,
+            //     image.height() / 2,
+            //     image::imageops::FilterType::Lanczos3,
+            // );
             let base64 = UseCaseRecorder::image_buffer2base64(image);
             if i == 0 {
                 screenshot_buffer1.lock().unwrap().replace(base64);
@@ -104,12 +104,15 @@ impl UseCaseRecorder {
 
                 if ui.button("Record").clicked() {
                     self.start_recording();
+                    self.show = false;
                 }
                 if ui.button("Stop").clicked() {
                     self.stop_recording();
                 }
             });
-            self.show = show;
+            if self.show {
+                self.show = show;
+            }
         }
     }
     pub fn image_buffer2base64(image_buffer: ImageBuffer<Rgba<u8>, Vec<u8>>) -> String {

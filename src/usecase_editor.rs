@@ -125,8 +125,8 @@ fn display_step_image( ui: &mut egui::Ui, monitor_data: &str, texture_id: &str, 
             let color = image::Rgba([255, 0, 0, 255]); // Red circle
             
             // Scale coords to match resized image dimensions
-            let scaled_x = coords.0 / 2;
-            let scaled_y = coords.1 / 2;
+            let scaled_x = coords.0 ;
+            let scaled_y = coords.1 ;
 
             // Draw circle by iterating over pixels in bounding box
             for y in -radius..=radius {
@@ -145,8 +145,6 @@ fn display_step_image( ui: &mut egui::Ui, monitor_data: &str, texture_id: &str, 
                 }
             }
             let image = image::DynamicImage::ImageRgba8(image);
-            let size = image.dimensions();
-            let image = image.resize(size.0 / 2, size.1 / 2, image::imageops::FilterType::CatmullRom);
             let size = image.dimensions();
             let image = egui::ColorImage::from_rgba_unmultiplied(
                 [size.0 as _, size.1 as _],
