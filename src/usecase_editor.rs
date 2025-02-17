@@ -54,7 +54,15 @@ impl UsecaseEditor {
                 if ui.button("Open").clicked() {
                     self.file_dialog.select_file();
                 }
-                if ui.button("Save").clicked() {}
+                if ui.button("Save").clicked() {
+                    if let Some(usecase) = &mut self.usecase {
+                        if let Some(path) = &self.picked_file {
+                            if let Ok(contents) = serde_json::to_string_pretty(usecase) {
+                                fs::write(path, contents).unwrap();
+                            }
+                        }
+                    }
+                }
             });
         });
     }
@@ -100,6 +108,7 @@ impl UsecaseEditor {
             match step {
                 EventType::Click(point, desc) => {
                     ui.label(format!("Click coordinates: ({}, {})", point.x, point.y));
+                    ui.label("Description:");
                     ui.text_edit_singleline(desc);
                     // Search backwards for the most recent Monitor1 event
                     if let Some(monitor_data) = prev_steps.iter().rev().find_map(|step| {
@@ -109,7 +118,6 @@ impl UsecaseEditor {
                             None
                         }
                     }) {
-                        ui.label(format!("Click coordinates: ({}, {})", point.x, point.y));
                         display_step_image(
                             ui,
                             monitor_data,
