@@ -64,7 +64,7 @@ copyright = "Copyright (c) PlugOvr.ai 2024. All rights reserved."
 
 
 [features]
-default = ["three_d", "computeruse"]
+default = ["three_d"]
 three_d = ["egui_overlay/three_d"]
 wgpu = ["egui_overlay/wgpu"]
 glow = ["egui_overlay/glow"]
