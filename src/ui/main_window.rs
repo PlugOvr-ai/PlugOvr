@@ -39,8 +39,7 @@ impl MainWindow {
         prompt_templates: TemplateMap,
         llm_selector: Arc<Mutex<LLMSelector>>,
         version_msg: Arc<Mutex<String>>,
-        #[cfg(feature = "computeruse_editor")]
-        usecase_editor: Arc<Mutex<UsecaseEditor>>,
+        #[cfg(feature = "computeruse_editor")] usecase_editor: Arc<Mutex<UsecaseEditor>>,
     ) -> Self {
         use tray_icon::menu::MenuEvent;
         let show_login_window = Arc::new(Mutex::new(false));
@@ -141,7 +140,11 @@ impl MainWindow {
         }
         #[cfg(feature = "computeruse_editor")]
         if *self.show_usecase_editor.lock().unwrap() {
-            self.usecase_editor.lock().unwrap().show(egui_context);
+            *self.show_usecase_editor.lock().unwrap() = self
+                .usecase_editor
+                .lock()
+                .unwrap()
+                .show_editor(egui_context);
         }
         if *self.show_llm_selector.lock().unwrap() {
             self.llm_selector.lock().unwrap().toggle_window();

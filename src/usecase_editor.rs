@@ -21,9 +21,11 @@ impl UsecaseEditor {
         Default::default()
     }
 
-    pub fn show(&mut self, ctx: &egui::Context) {
+    pub fn show_editor(&mut self, ctx: &egui::Context) -> bool {
+        let mut show = true;
         egui::Window::new("Usecase Editor")
             .default_size([800.0, 600.0])
+            .open(&mut show)
             .show(ctx, |ui| {
                 self.show_menu_bar(ui);
                 self.show_content(ui);
@@ -43,6 +45,7 @@ impl UsecaseEditor {
                     }
                 }
             });
+        show
     }
 
     fn show_menu_bar(&mut self, ui: &mut egui::Ui) {
@@ -85,28 +88,27 @@ impl UsecaseEditor {
 
             // Show current step
             let current_step = self.current_step;
-            let step = &usecase.usecase_steps[current_step];
-            let pretty = serde_json::to_string_pretty(&step).unwrap_or_default();
-            let mut text = pretty.clone();
-            if ui.text_edit_multiline(&mut text).changed() {
-                // Handle text changes if needed
-            }
+            let (prev_steps, current_and_after) = usecase.usecase_steps.split_at_mut(current_step);
+            let step = &mut current_and_after[0];
+            // let pretty = serde_json::to_string_pretty(&step).unwrap_or_default();
+            // let mut text = pretty.clone();
+            // if ui.text_edit_multiline(&mut text).changed() {
+            //     // Handle text changes if needed
+            // }
 
             // Handle click events and monitor data
             match step {
-                EventType::Click(point, _) => {
+                EventType::Click(point, desc) => {
+                    ui.label(format!("Click coordinates: ({}, {})", point.x, point.y));
+                    ui.text_edit_singleline(desc);
                     // Search backwards for the most recent Monitor1 event
-                    if let Some(monitor_data) = usecase.usecase_steps[..current_step]
-                        .iter()
-                        .rev()
-                        .find_map(|step| {
-                            if let EventType::Monitor1(data) = step {
-                                Some(data)
-                            } else {
-                                None
-                            }
-                        })
-                    {
+                    if let Some(monitor_data) = prev_steps.iter().rev().find_map(|step| {
+                        if let EventType::Monitor1(data) = step {
+                            Some(data)
+                        } else {
+                            None
+                        }
+                    }) {
                         ui.label(format!("Click coordinates: ({}, {})", point.x, point.y));
                         display_step_image(
                             ui,
@@ -116,6 +118,48 @@ impl UsecaseEditor {
                             &mut self.cached_textures,
                         );
                     }
+                }
+                EventType::Monitor1(data) => {
+                    ui.label("Monitor1");
+                    display_step_image(
+                        ui,
+                        data,
+                        &format!("image_{}", current_step),
+                        (-1, -1),
+                        &mut self.cached_textures,
+                    );
+                }
+                EventType::Monitor2(data) => {
+                    ui.label("Monitor2");
+                    display_step_image(
+                        ui,
+                        data,
+                        &format!("image_{}", current_step),
+                        (-1, -1),
+                        &mut self.cached_textures,
+                    );
+                }
+                EventType::Monitor3(data) => {
+                    ui.label("Monitor3");
+                    display_step_image(
+                        ui,
+                        data,
+                        &format!("image_{}", current_step),
+                        (-1, -1),
+                        &mut self.cached_textures,
+                    );
+                }
+                EventType::Text(text) => {
+                    ui.label("Text");
+                    ui.text_edit_singleline(text);
+                }
+                EventType::KeyDown(key) => {
+                    ui.label("KeyDown");
+                    ui.text_edit_singleline(key);
+                }
+                EventType::KeyUp(key) => {
+                    ui.label("KeyUp");
+                    ui.text_edit_singleline(key);
                 }
                 // Handle other event types as needed
                 _ => {}
@@ -151,26 +195,28 @@ fn display_step_image(
             // Scale coords to match resized image dimensions
             let scaled_x = coords.0;
             let scaled_y = coords.1;
+            if scaled_x != -1 && scaled_y != -1 {
+                // Draw circle by iterating over pixels in bounding box
+                for y in -radius..=radius {
+                    for x in -radius..=radius {
+                        // Check if point is within circle using distance formula
+                        if x * x + y * y <= radius * radius {
+                            let px = scaled_x + x;
+                            let py = scaled_y + y;
 
-            // Draw circle by iterating over pixels in bounding box
-            for y in -radius..=radius {
-                for x in -radius..=radius {
-                    // Check if point is within circle using distance formula
-                    if x * x + y * y <= radius * radius {
-                        let px = scaled_x + x;
-                        let py = scaled_y + y;
-
-                        // Only draw if within image bounds
-                        if px >= 0
-                            && px < image.width() as i32
-                            && py >= 0
-                            && py < image.height() as i32
-                        {
-                            image.put_pixel(px as u32, py as u32, color);
+                            // Only draw if within image bounds
+                            if px >= 0
+                                && px < image.width() as i32
+                                && py >= 0
+                                && py < image.height() as i32
+                            {
+                                image.put_pixel(px as u32, py as u32, color);
+                            }
                         }
                     }
                 }
             }
+
             let image = image::DynamicImage::ImageRgba8(image);
 
             let image = image::imageops::resize(
