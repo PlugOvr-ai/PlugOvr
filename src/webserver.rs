@@ -147,6 +147,7 @@ async fn handle_socket(socket: WebSocket, state: WebServerState) {
                     "screenshot": base64_image,
                     "current_action": current_action,
                     "computing": *usecase_replay.computing_action.lock().unwrap(),
+                    "computing_plan": *usecase_replay.computing_plan.lock().unwrap(),
                     "show": usecase_replay.show,
                 });
 

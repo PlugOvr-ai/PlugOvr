@@ -92,6 +92,14 @@
         .history-item:last-child {
             border-bottom: none;
         }
+
+        .planning {
+            background-color: #f0f0ff;
+        }
+
+        .computing {
+            background-color: #fff0f0;
+        }
     </style>
 </head>
 
@@ -252,7 +260,9 @@
             const status = document.getElementById('status');
             let statusText = 'Status: ';
 
-            if (data.computing) {
+            if (data.computing_plan) {
+                statusText += 'Planning next steps...';
+            } else if (data.computing) {
                 statusText += 'Computing next action...';
             } else if (data.current_action) {
                 statusText += `Next action: ${JSON.stringify(data.current_action)}`;
@@ -261,6 +271,14 @@
             }
 
             status.textContent = statusText;
+
+            // Update status styling based on state
+            status.className = 'status';
+            if (data.computing_plan) {
+                status.classList.add('planning');
+            } else if (data.computing) {
+                status.classList.add('computing');
+            }
         }
 
         function addToHistory(action) {
