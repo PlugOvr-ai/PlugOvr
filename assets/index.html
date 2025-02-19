@@ -101,10 +101,11 @@
 
         <div class="controls">
             <h2>Controls</h2>
-            <button id="nextBtn">Next Action</button>
+
             <input type="text" id="instructionInput" placeholder="Enter new instruction">
             <button id="executeBtn">Execute Instruction</button>
             <div class="status" id="status">Status: Ready</div>
+            <button id="nextBtn">Perform Next Action</button>
         </div>
 
         <div class="screenshot-container">
@@ -122,6 +123,10 @@
         let ws;
         let history = [];
         let currentScreenshot = null;
+        let animationFrame = null;
+        let currentAction = null;
+        let lastUpdateTime = 0;
+        const UPDATE_THROTTLE = 500; // Minimum time between updates in ms
 
         function connect() {
             ws = new WebSocket(`ws://${window.location.host}/ws`);
@@ -129,11 +134,20 @@
             ws.onmessage = function (event) {
                 const data = JSON.parse(event.data);
                 if (data.type === 'update' && data.show) {
-                    updateScreenshot(data.screenshot);
-                    updateOverlay(data.current_action);
-                    updateStatus(data);
-                    if (data.current_action) {
-                        addToHistory(data.current_action);
+                    const now = Date.now();
+                    // Only update if enough time has passed or if it's a new action
+                    if (now - lastUpdateTime > UPDATE_THROTTLE ||
+                        JSON.stringify(currentAction) !== JSON.stringify(data.current_action)) {
+                        updateScreenshot(data.screenshot);
+                        if (JSON.stringify(currentAction) !== JSON.stringify(data.current_action)) {
+                            currentAction = data.current_action;
+                            updateOverlay(data.current_action);
+                        }
+                        updateStatus(data);
+                        if (data.current_action) {
+                            addToHistory(data.current_action);
+                        }
+                        lastUpdateTime = now;
                     }
                 }
             };
@@ -161,11 +175,9 @@
             const canvas = document.getElementById('overlay');
             const container = document.querySelector('.screenshot-container');
 
-            // Set canvas dimensions to match the displayed image size
             canvas.width = currentScreenshot.clientWidth;
             canvas.height = currentScreenshot.clientHeight;
 
-            // Update container dimensions
             container.style.width = currentScreenshot.clientWidth + 'px';
             container.style.height = currentScreenshot.clientHeight + 'px';
         }
@@ -173,63 +185,66 @@
         function updateOverlay(action) {
             if (!action || !currentScreenshot) return;
 
+            // Cancel any existing animation when we get a new action
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+                animationFrame = null;
+            }
+
             const canvas = document.getElementById('overlay');
             const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (action.type === 'ClickPosition') {
                 const [x, y] = action.value;
-                // Scale coordinates based on the image scaling
                 const scaleX = canvas.width / currentScreenshot.naturalWidth;
                 const scaleY = canvas.height / currentScreenshot.naturalHeight;
 
                 const scaledX = x * scaleX;
                 const scaledY = y * scaleY;
 
-                // Draw red circle
-                ctx.beginPath();
-                ctx.arc(scaledX, scaledY, 10, 0, 2 * Math.PI);
-                ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-                ctx.fill();
+                // Animation state
+                let startTime = performance.now();
+                const animationDuration = 1500; // 1.5 seconds per cycle
 
-                // Draw pulsing animation
-                let alpha = 0.5;
-                let growing = false;
-                let radius = 10;
+                function animate(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = (elapsed % animationDuration) / animationDuration;
 
-                function animate() {
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                    // Draw solid circle
+                    // Draw outer pulsing circle
+                    const pulseRadius = 15 + Math.sin(progress * Math.PI * 2) * 5; // Radius varies between 10 and 20
+                    const pulseAlpha = 0.3 + Math.sin(progress * Math.PI * 2) * 0.1; // Alpha varies between 0.2 and 0.4
+
+                    // Draw outer glow
+                    const gradient = ctx.createRadialGradient(
+                        scaledX, scaledY, 0,
+                        scaledX, scaledY, pulseRadius * 1.5
+                    );
+                    gradient.addColorStop(0, `rgba(255, 0, 0, ${pulseAlpha})`);
+                    gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+
                     ctx.beginPath();
-                    ctx.arc(scaledX, scaledY, 10, 0, 2 * Math.PI);
-                    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                    ctx.arc(scaledX, scaledY, pulseRadius * 1.5, 0, 2 * Math.PI);
+                    ctx.fillStyle = gradient;
                     ctx.fill();
 
-                    // Draw pulsing circle
+                    // Draw solid inner circle
                     ctx.beginPath();
-                    ctx.arc(scaledX, scaledY, radius, 0, 2 * Math.PI);
-                    ctx.fillStyle = `rgba(255, 0, 0, ${alpha})`;
+                    ctx.arc(scaledX, scaledY, 8, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
                     ctx.fill();
 
-                    if (growing) {
-                        radius += 0.5;
-                        alpha -= 0.02;
-                        if (radius >= 20) {
-                            growing = false;
-                        }
+                    // Continue animation only if this is still the current action
+                    if (JSON.stringify(action) === JSON.stringify(currentAction)) {
+                        animationFrame = requestAnimationFrame(animate);
                     } else {
-                        radius -= 0.5;
-                        alpha += 0.02;
-                        if (radius <= 10) {
-                            growing = true;
-                        }
+                        animationFrame = null;
                     }
-
-                    requestAnimationFrame(animate);
                 }
 
-                animate();
+                // Start animation
+                animationFrame = requestAnimationFrame(animate);
             }
         }
 
@@ -249,13 +264,15 @@
         }
 
         function addToHistory(action) {
-            history.unshift(action);
-            if (history.length > 50) history.pop();
+            if (history.length === 0 || JSON.stringify(action) !== JSON.stringify(history[0])) {
+                history.unshift(action);
+                if (history.length > 50) history.pop();
 
-            const historyList = document.getElementById('historyList');
-            historyList.innerHTML = history
-                .map(action => `<div class="history-item">${JSON.stringify(action)}</div>`)
-                .join('');
+                const historyList = document.getElementById('historyList');
+                historyList.innerHTML = history
+                    .map(action => `<div class="history-item">${JSON.stringify(action)}</div>`)
+                    .join('');
+            }
         }
 
         document.getElementById('nextBtn').onclick = function () {
@@ -290,6 +307,14 @@
 
         // Handle window resize
         window.addEventListener('resize', updateOverlayDimensions);
+
+        // Cleanup animation when page is hidden/closed
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && animationFrame) {
+                cancelAnimationFrame(animationFrame);
+                animationFrame = null;
+            }
+        });
 
         connect();
     </script>
