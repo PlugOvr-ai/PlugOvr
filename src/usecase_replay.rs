@@ -1,6 +1,6 @@
-use crate::usecase_recorder::UseCase;
-
 use crate::llm::LLMSelector;
+use crate::usecase_recorder::EventType;
+use crate::usecase_recorder::UseCase;
 
 use egui_overlay::egui_render_three_d::{
     three_d::{ColorMaterial, Gm, Mesh},
@@ -48,6 +48,7 @@ pub struct UseCaseReplay {
     pub server_url: String,
     pub image_width: u32,
     pub image_height: u32,
+    pub recorded_usecases: Vec<UseCaseActions>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -123,6 +124,7 @@ impl UseCaseReplay {
             server_url,
             image_width: 0,
             image_height: 0,
+            recorded_usecases: vec![],
         }
     }
     pub fn show_dialog(&mut self, egui_context: &egui::Context) {
@@ -167,10 +169,50 @@ impl UseCaseReplay {
         }
     }
 
+    pub fn load_usecase(&mut self, filename: String) {
+        let file = File::open(filename).unwrap();
+        let usecase: UseCase = serde_json::from_reader(file).unwrap();
+        println!("usecase: {:?}", usecase);
+
+        let mut usecase_actions = UseCaseActions {
+            instruction: usecase.usecase_instructions,
+            actions: vec![],
+        };
+
+        for step in usecase.usecase_steps.iter() {
+            match step {
+                EventType::Click(_, instruction) => {
+                    usecase_actions
+                        .actions
+                        .push(ActionTypes::Click(instruction.clone()));
+                }
+                EventType::KeyDown(instruction) => {
+                    usecase_actions
+                        .actions
+                        //.push(ActionTypes::KeyDown(instruction.clone()));
+                        .push(ActionTypes::KeyPress(instruction.clone()));
+                }
+                // EventType::KeyUp(instruction) => {
+                //     usecase_actions
+                //         .actions
+                //         .push(ActionTypes::KeyUp(instruction.clone()));
+                // }
+                EventType::Text(instruction) => {
+                    usecase_actions
+                        .actions
+                        .push(ActionTypes::InsertText(instruction.clone()));
+                }
+                _ => {}
+            }
+        }
+
+        self.recorded_usecases.push(usecase_actions);
+    }
+
     pub fn generate_usecase_actions(&mut self, instruction: &str) {
         let instruction = instruction.to_string();
         self.grab_screenshot();
-        let monitor1 = self.monitor1.clone();
+        let monitor1: Option<ImageBuffer<Rgba<u8>, Vec<u8>>> = self.monitor1.clone();
 
         let vec_instructions = self.vec_instructions.clone();
         *self.index_instruction.lock().unwrap() = 0;
@@ -311,11 +353,22 @@ impl UseCaseReplay {
               }
             ]
           }"#;
-
+        let add_examples = self
+            .recorded_usecases
+            .iter()
+            .map(|usecase| {
+                format!(
+                    "Here is an example of the JSON format: {}",
+                    serde_json::to_string_pretty(&usecase).unwrap()
+                )
+            })
+            .collect::<Vec<String>>()
+            .join("\n");
         // println!("{}", examplejson);
+        println!("{}", add_examples);
         let system_prompt = format!(
-            "You are an expert in controlling a computer, you can click on the screen, write text, and press keys. Here is an example of the JSON format: {} think about the steps to complete the task, jump to the beginning of large text boxes with Home and PageUp, output the actions in JSON format.",
-            examplejson
+            "You are an expert in controlling a computer, you can click on the screen, write text, and press keys. {} think about the steps to complete the task, jump to the beginning of large text boxes with Home and PageUp, output the actions in JSON format.",
+            add_examples
         );
 
         // Convert monitor1 to base64 string
@@ -647,6 +700,102 @@ impl UseCaseReplay {
             });
         });
     }
+    pub fn click_florence2(&mut self, instruction: String) {
+        println!("click_florence2: {}", instruction);
+        *self.computing_action.lock().unwrap() = true;
+        let monitor1 = self.monitor1.clone();
+        let vec_instructions = self.vec_instructions.clone();
+        let index_instruction = self.index_instruction.clone();
+        let index_action = self.index_action.clone();
+        let computing_action = self.computing_action.clone();
+        std::thread::spawn(move || {
+            let client = reqwest::blocking::Client::new();
+            // Encode the image directly into the buffer
+            let mut buffer = Vec::new();
+            match monitor1.as_ref() {
+                Some(monitor) => {
+                    if let Err(e) =
+                        monitor.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
+                    {
+                        println!("Failed to encode image: {}", e);
+                        return;
+                    }
+                }
+                None => {
+                    println!("No monitor screenshot available");
+                    return;
+                }
+            }
+            let image_part = match reqwest::blocking::multipart::Part::bytes(buffer)
+                .file_name("image.png")
+                .mime_str("image/png")
+            {
+                Ok(part) => part,
+                Err(e) => {
+                    println!("Failed to create multipart form: {}", e);
+                    return;
+                }
+            };
+
+            let instruction_part = reqwest::blocking::multipart::Part::text(instruction);
+            let form = reqwest::blocking::multipart::Form::new()
+                .part("image", image_part)
+                .part("prompt", instruction_part);
+
+            // Send the POST request with error handling
+            let res = match client
+                .post(format!("{}/get_location", "http://192.168.1.106:5001"))
+                .multipart(form)
+                .send()
+            {
+                Ok(response) => response,
+                Err(e) => {
+                    println!("Failed to send request: {}", e);
+                    return;
+                }
+            };
+            // Parse the response text
+            let response_text = match res.text() {
+                Ok(text) => text,
+                Err(e) => {
+                    println!("Failed to read response: {}", e);
+                    return;
+                }
+            };
+            println!("response_text: {}", response_text);
+            if let Some(coords) = parse_coordinates(&response_text) {
+                println!("coords: {:?}", coords);
+                let (x1, y1, x2, y2) = coords;
+                let center_x = (x1 + x2) / 2.0;
+                let center_y = (y1 + y2) / 2.0;
+                let index_instruction = *index_instruction.lock().unwrap();
+                let index_action = *index_action.lock().unwrap();
+                if let Some(usecase_actions) =
+                    vec_instructions.lock().unwrap().get_mut(index_instruction)
+                {
+                    if index_action + 1 < usecase_actions.actions.len() {
+                        if let ActionTypes::ClickPosition(_x, _y) =
+                            usecase_actions.actions[index_action + 1]
+                        {
+                            usecase_actions.actions[index_action + 1] =
+                                ActionTypes::ClickPosition(center_x, center_y);
+                        } else {
+                            usecase_actions.actions.insert(
+                                index_action + 1,
+                                ActionTypes::ClickPosition(center_x, center_y),
+                            );
+                        }
+                    } else {
+                        usecase_actions
+                            .actions
+                            .push(ActionTypes::ClickPosition(center_x, center_y));
+                    }
+                }
+            }
+            *computing_action.lock().unwrap() = false;
+            *index_action.lock().unwrap() += 1;
+        });
+    }
 
     pub fn step(&mut self) {
         let index_instruction = *self.index_instruction.lock().unwrap();
@@ -687,7 +836,8 @@ impl UseCaseReplay {
         match action {
             ActionTypes::Click(instruction) => {
                 self.grab_screenshot();
-                self.click(instruction);
+                //self.click(instruction);
+                self.click_florence2(instruction);
             }
             ActionTypes::ClickPosition(x, y) => {
                 println!("click_position: {:?}", (x, y));
@@ -892,20 +1042,20 @@ impl UseCaseReplay {
             });
     }
 }
-// Add this helper function
-// fn parse_coordinates_florence2(response: &str) -> Option<(f32, f32, f32, f32)> {
-//     let re = regex::Regex::new(r"<loc_(\d+)>").unwrap();
-//     let coords: Vec<f32> = re
-//         .captures_iter(response)
-//         .map(|cap| cap[1].parse::<f32>().unwrap() / 1000.0)
-//         .collect();
 
-//     if coords.len() == 4 {
-//         Some((coords[0], coords[1], coords[2], coords[3]))
-//     } else {
-//         None
-//     }
-// }
+fn parse_coordinates_florence2(response: &str) -> Option<(f32, f32, f32, f32)> {
+    let re = regex::Regex::new(r"<loc_(\d+)>").unwrap();
+    let coords: Vec<f32> = re
+        .captures_iter(response)
+        .map(|cap| cap[1].parse::<f32>().unwrap() / 1000.0)
+        .collect();
+
+    if coords.len() == 4 {
+        Some((coords[0], coords[1], coords[2], coords[3]))
+    } else {
+        None
+    }
+}
 
 fn parse_coordinates(response: &str) -> Option<(f32, f32, f32, f32)> {
     // Try the original format [x1, y1, x2, y2]
