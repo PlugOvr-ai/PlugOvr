@@ -68,6 +68,20 @@ async fn command_handler(
                     .unwrap()
                     .execute_usecase(instruction);
                 state.usecase_replay.lock().unwrap().show = true;
+                *state
+                    .usecase_replay
+                    .lock()
+                    .unwrap()
+                    .index_action
+                    .lock()
+                    .unwrap() = 0;
+                *state
+                    .usecase_replay
+                    .lock()
+                    .unwrap()
+                    .index_instruction
+                    .lock()
+                    .unwrap() = 0;
                 "New instruction executed".to_string()
             } else {
                 "No instruction provided".to_string()
@@ -111,9 +125,9 @@ async fn handle_socket(socket: WebSocket, state: WebServerState) {
     // Spawn task to capture and send updates
     let update_task = tokio::spawn(async move {
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            let usecase_replay = state_clone.usecase_replay.lock().unwrap();
-
+            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+            let mut usecase_replay = state_clone.usecase_replay.lock().unwrap();
+            usecase_replay.grab_screenshot();
             if let Some(screenshot) = &usecase_replay.monitor1 {
                 let mut buffer = Vec::new();
                 screenshot
@@ -150,6 +164,7 @@ async fn handle_socket(socket: WebSocket, state: WebServerState) {
                     "computing_plan": *usecase_replay.computing_plan.lock().unwrap(),
                     "show": usecase_replay.show,
                 });
+                //println!("Sending update: {}", update);
 
                 if let Err(e) = tx_clone.send(update.to_string()) {
                     println!("Error sending update: {}", e);

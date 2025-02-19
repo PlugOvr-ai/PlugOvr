@@ -24,6 +24,7 @@ use rdev::simulate;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs::File;
+
 use std::io::Cursor;
 use std::io::Read;
 use std::io::Write;
@@ -766,8 +767,8 @@ impl UseCaseReplay {
             if let Some(coords) = parse_coordinates(&response_text) {
                 println!("coords: {:?}", coords);
                 let (x1, y1, x2, y2) = coords;
-                let center_x = (x1 + x2) / 2.0;
-                let center_y = (y1 + y2) / 2.0;
+                let center_x = ((x1 + x2) / 2.0).floor();
+                let center_y = ((y1 + y2) / 2.0).floor();
                 let index_instruction = *index_instruction.lock().unwrap();
                 let index_action = *index_action.lock().unwrap();
                 if let Some(usecase_actions) =
@@ -833,7 +834,7 @@ impl UseCaseReplay {
             .unwrap()
             .actions[index_action]
             .clone();
-        match action {
+        match action.clone() {
             ActionTypes::Click(instruction) => {
                 self.grab_screenshot();
                 //self.click(instruction);
@@ -869,7 +870,8 @@ impl UseCaseReplay {
                 self.generate_usecase_actions(&instruction);
             }
         }
-        if !*self.computing_action.lock().unwrap() {
+
+        if !*self.computing_action.lock().unwrap() && !matches!(action, ActionTypes::Click(_)) {
             *self.index_action.lock().unwrap() += 1;
         }
         let index_action = *self.index_action.lock().unwrap();

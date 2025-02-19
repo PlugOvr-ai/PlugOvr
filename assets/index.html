@@ -134,7 +134,7 @@
         let animationFrame = null;
         let currentAction = null;
         let lastUpdateTime = 0;
-        const UPDATE_THROTTLE = 500; // Minimum time between updates in ms
+        const UPDATE_THROTTLE = 50; // Minimum time between updates in ms
 
         function connect() {
             ws = new WebSocket(`ws://${window.location.host}/ws`);
@@ -144,19 +144,19 @@
                 if (data.type === 'update' && data.show) {
                     const now = Date.now();
                     // Only update if enough time has passed or if it's a new action
-                    if (now - lastUpdateTime > UPDATE_THROTTLE ||
-                        JSON.stringify(currentAction) !== JSON.stringify(data.current_action)) {
-                        updateScreenshot(data.screenshot);
-                        if (JSON.stringify(currentAction) !== JSON.stringify(data.current_action)) {
-                            currentAction = data.current_action;
-                            updateOverlay(data.current_action);
-                        }
-                        updateStatus(data);
-                        if (data.current_action) {
-                            addToHistory(data.current_action);
-                        }
-                        lastUpdateTime = now;
+                    //if (now - lastUpdateTime > UPDATE_THROTTLE ||
+                    //JSON.stringify(currentAction) !== JSON.stringify(data.current_action)) {
+                    updateScreenshot(data.screenshot);
+                    if (JSON.stringify(currentAction) !== JSON.stringify(data.current_action)) {
+                        currentAction = data.current_action;
+                        updateOverlay(data.current_action);
                     }
+                    updateStatus(data);
+                    if (data.current_action) {
+                        addToHistory(data.current_action);
+                    }
+                    lastUpdateTime = now;
+                    //}
                 }
             };
 
