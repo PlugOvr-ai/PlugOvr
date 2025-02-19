@@ -16,13 +16,15 @@ extern crate objc;
 
 mod llm;
 mod ui;
-#[cfg(feature = "computeruse_record")]
-mod usecase_recorder;
 #[cfg(feature = "computeruse_editor")]
 mod usecase_editor;
+#[cfg(feature = "computeruse_record")]
+mod usecase_recorder;
+
 #[cfg(feature = "computeruse_replay")]
 mod usecase_replay;
 mod version_check;
+mod webserver;
 mod window_handling;
 
 #[cfg(feature = "computeruse_record")]
@@ -37,12 +39,12 @@ use rdev::listen;
 use rdev::{listen, Event};
 use std::error::Error;
 use std::time::Duration;
+#[cfg(feature = "computeruse_editor")]
+use usecase_editor::UsecaseEditor;
 #[cfg(feature = "computeruse_record")]
 use usecase_recorder::Point;
 #[cfg(feature = "computeruse_record")]
 use usecase_recorder::UseCaseRecorder;
-#[cfg(feature = "computeruse_editor")]
-use usecase_editor::UsecaseEditor;
 use window_handling::ActiveWindow;
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
@@ -204,6 +206,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let usecase_recorder = usecase_recorder.clone();
         #[cfg(feature = "computeruse_replay")]
         let usecase_replay = usecase_replay.clone();
+        #[cfg(feature = "computeruse_replay")]
+        usecase_replay
+            .lock()
+            .unwrap()
+            .load_usecase("calendar.json".to_string());
         let _ = thread::Builder::new()
             .name("Key Event Thread".to_string())
             .spawn(move || {
@@ -435,13 +442,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
             });
     }
-
+    let usecase_replay_clone = usecase_replay.clone();
+    tokio::spawn(async move {
+        webserver::start_server(usecase_replay_clone).await;
+    });
     {
         let text_entry = text_entry.clone();
         let text_entryfield_position = text_entryfield_position.clone();
         let ai_context = ai_context.clone();
 
         let active_window = active_window.clone();
+        #[cfg(feature = "computeruse_replay")]
+        let usecase_replay = usecase_replay.clone();
 
         ui::user_interface::run(
             text_entry,
@@ -459,6 +471,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         )
         .await;
     }
+
+    // Start webserver in a separate thread
 
     Ok(())
 }

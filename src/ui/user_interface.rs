@@ -5,12 +5,12 @@ use crate::ui::screen_dimensions::get_screen_dimensions;
 use crate::ui::template_editor::create_prompt_templates;
 use crate::ui::template_editor::TemplateEditor;
 use crate::ui::template_editor::TemplateMap;
+#[cfg(feature = "computeruse_editor")]
+use crate::usecase_editor::UsecaseEditor;
 #[cfg(feature = "computeruse_record")]
 use crate::usecase_recorder::UseCaseRecorder;
 #[cfg(feature = "computeruse_replay")]
 use crate::usecase_replay::UseCaseReplay;
-#[cfg(feature = "computeruse_editor")]
-use crate::usecase_editor::UsecaseEditor;
 use crate::version_check;
 use crate::ActiveWindow;
 use egui_overlay::EguiOverlay;
@@ -34,7 +34,6 @@ use std::sync::{Arc, Mutex};
 
 #[cfg(not(any(feature = "three_d", feature = "wgpu", feature = "glow")))]
 compile_error!("you must enable either `three_d`, `wgpu` or `glow` feature to run this example");
-
 
 pub async fn run(
     text_entry: Arc<Mutex<bool>>,
@@ -674,7 +673,5 @@ impl EguiOverlay for PlugOvr {
         if !self.assistance_window.show {
             *self.ai_answer.lock().unwrap() = String::new();
         }
-
-
     }
 }

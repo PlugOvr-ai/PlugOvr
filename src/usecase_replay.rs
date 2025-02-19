@@ -172,7 +172,7 @@ impl UseCaseReplay {
     pub fn load_usecase(&mut self, filename: String) {
         let file = File::open(filename).unwrap();
         let usecase: UseCase = serde_json::from_reader(file).unwrap();
-        println!("usecase: {:?}", usecase);
+        //println!("usecase: {:?}", usecase);
 
         let mut usecase_actions = UseCaseActions {
             instruction: usecase.usecase_instructions,

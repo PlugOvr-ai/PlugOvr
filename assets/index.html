@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlugOvr Remote Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .screenshot-container {
+            position: relative;
+            margin-bottom: 20px;
+            display: inline-block;
+        }
+
+        #screenshot {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .history {
+            background-color: white;
+            padding: 20px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        input[type="text"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 300px;
+            margin-right: 10px;
+        }
+
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+        }
+
+        .history-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>PlugOvr Remote Control</h1>
+
+        <div class="controls">
+            <h2>Controls</h2>
+            <button id="nextBtn">Next Action</button>
+            <input type="text" id="instructionInput" placeholder="Enter new instruction">
+            <button id="executeBtn">Execute Instruction</button>
+            <div class="status" id="status">Status: Ready</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img id="screenshot" src="" alt="Screenshot">
+            <canvas id="overlay"></canvas>
+        </div>
+
+        <div class="history">
+            <h2>Action History</h2>
+            <div id="historyList"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let history = [];
+        let currentScreenshot = null;
+
+        function connect() {
+            ws = new WebSocket(`ws://${window.location.host}/ws`);
+
+            ws.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+                if (data.type === 'update' && data.show) {
+                    updateScreenshot(data.screenshot);
+                    updateOverlay(data.current_action);
+                    updateStatus(data);
+                    if (data.current_action) {
+                        addToHistory(data.current_action);
+                    }
+                }
+            };
+
+            ws.onclose = function () {
+                setTimeout(connect, 1000);
+            };
+        }
+
+        function updateScreenshot(base64Image) {
+            const img = document.getElementById('screenshot');
+            img.src = `data:image/png;base64,${base64Image}`;
+            img.onload = function () {
+                currentScreenshot = img;
+                updateOverlayDimensions();
+                if (img.naturalWidth > 800) {
+                    img.style.width = '800px';
+                }
+            };
+        }
+
+        function updateOverlayDimensions() {
+            if (!currentScreenshot) return;
+
+            const canvas = document.getElementById('overlay');
+            const container = document.querySelector('.screenshot-container');
+
+            // Set canvas dimensions to match the displayed image size
+            canvas.width = currentScreenshot.clientWidth;
+            canvas.height = currentScreenshot.clientHeight;
+
+            // Update container dimensions
+            container.style.width = currentScreenshot.clientWidth + 'px';
+            container.style.height = currentScreenshot.clientHeight + 'px';
+        }
+
+        function updateOverlay(action) {
+            if (!action || !currentScreenshot) return;
+
+            const canvas = document.getElementById('overlay');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (action.type === 'ClickPosition') {
+                const [x, y] = action.value;
+                // Scale coordinates based on the image scaling
+                const scaleX = canvas.width / currentScreenshot.naturalWidth;
+                const scaleY = canvas.height / currentScreenshot.naturalHeight;
+
+                const scaledX = x * scaleX;
+                const scaledY = y * scaleY;
+
+                // Draw red circle
+                ctx.beginPath();
+                ctx.arc(scaledX, scaledY, 10, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                ctx.fill();
+
+                // Draw pulsing animation
+                let alpha = 0.5;
+                let growing = false;
+                let radius = 10;
+
+                function animate() {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    // Draw solid circle
+                    ctx.beginPath();
+                    ctx.arc(scaledX, scaledY, 10, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                    ctx.fill();
+
+                    // Draw pulsing circle
+                    ctx.beginPath();
+                    ctx.arc(scaledX, scaledY, radius, 0, 2 * Math.PI);
+                    ctx.fillStyle = `rgba(255, 0, 0, ${alpha})`;
+                    ctx.fill();
+
+                    if (growing) {
+                        radius += 0.5;
+                        alpha -= 0.02;
+                        if (radius >= 20) {
+                            growing = false;
+                        }
+                    } else {
+                        radius -= 0.5;
+                        alpha += 0.02;
+                        if (radius <= 10) {
+                            growing = true;
+                        }
+                    }
+
+                    requestAnimationFrame(animate);
+                }
+
+                animate();
+            }
+        }
+
+        function updateStatus(data) {
+            const status = document.getElementById('status');
+            let statusText = 'Status: ';
+
+            if (data.computing) {
+                statusText += 'Computing next action...';
+            } else if (data.current_action) {
+                statusText += `Next action: ${JSON.stringify(data.current_action)}`;
+            } else {
+                statusText += 'Ready';
+            }
+
+            status.textContent = statusText;
+        }
+
+        function addToHistory(action) {
+            history.unshift(action);
+            if (history.length > 50) history.pop();
+
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = history
+                .map(action => `<div class="history-item">${JSON.stringify(action)}</div>`)
+                .join('');
+        }
+
+        document.getElementById('nextBtn').onclick = function () {
+            fetch('/command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: 'next'
+                })
+            });
+        };
+
+        document.getElementById('executeBtn').onclick = function () {
+            const instruction = document.getElementById('instructionInput').value;
+            if (!instruction) return;
+
+            fetch('/command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: 'new_instruction',
+                    instruction: instruction
+                })
+            });
+
+            document.getElementById('instructionInput').value = '';
+        };
+
+        // Handle window resize
+        window.addEventListener('resize', updateOverlayDimensions);
+
+        connect();
+    </script>
+</body>
+
+</html>
