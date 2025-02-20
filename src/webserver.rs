@@ -156,10 +156,35 @@ async fn handle_socket(socket: WebSocket, state: WebServerState) {
                     None
                 };
 
+                // Get the full action plan and mark executed actions
+                let action_plan = if let Some(actions) = usecase_replay
+                    .vec_instructions
+                    .lock()
+                    .unwrap()
+                    .get(index_instruction)
+                {
+                    let mut plan_with_status: Vec<serde_json::Value> = actions
+                        .actions
+                        .iter()
+                        .enumerate()
+                        .map(|(i, action)| {
+                            serde_json::json!({
+                                "action": action,
+                                "executed": i < index_action,
+                                "current": i == index_action
+                            })
+                        })
+                        .collect();
+                    Some(plan_with_status)
+                } else {
+                    None
+                };
+
                 let update = serde_json::json!({
                     "type": "update",
                     "screenshot": base64_image,
                     "current_action": current_action,
+                    "action_plan": action_plan,
                     "computing": *usecase_replay.computing_action.lock().unwrap(),
                     "computing_plan": *usecase_replay.computing_plan.lock().unwrap(),
                     "show": usecase_replay.show,

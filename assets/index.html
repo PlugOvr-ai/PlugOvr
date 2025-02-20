@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PlugOvr Remote Control</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -14,7 +15,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
 
@@ -100,6 +101,46 @@
         .computing {
             background-color: #fff0f0;
         }
+
+        .status-icon {
+            margin-right: 10px;
+            font-weight: bold;
+            min-width: 20px;
+        }
+
+        .list-group-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 15px;
+            border-left: 4px solid transparent;
+        }
+
+        .list-group-item.active {
+            background-color: #e3f2fd;
+            border-left-color: #007bff;
+            color: #000;
+        }
+
+        .list-group-item-success {
+            background-color: #f8fff8;
+            border-left-color: #28a745;
+        }
+
+        .card {
+            margin-top: 20px;
+            position: sticky;
+            top: 20px;
+        }
+
+        .action-plan {
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .action-text {
+            flex-grow: 1;
+        }
     </style>
 </head>
 
@@ -111,14 +152,25 @@
             <h2>Controls</h2>
 
             <input type="text" id="instructionInput" placeholder="Enter new instruction">
-            <button id="executeBtn">Execute Instruction</button>
+            <button id="executeBtn">Plan Actions</button>
             <div class="status" id="status">Status: Ready</div>
             <button id="nextBtn">Perform Next Action</button>
         </div>
 
-        <div class="screenshot-container">
-            <img id="screenshot" src="" alt="Screenshot">
-            <canvas id="overlay"></canvas>
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <img id="screenshot" class="img-fluid" src="" alt="Screenshot">
+            </div>
+            <div class="col-lg-4">
+                <div class="action-plan">
+                    <div class="card-header">
+                        <h5 class="mb-0">Action Plan</h5>
+                    </div>
+                    <div id="action-plan" class="list-group list-group-flush">
+                        <!-- Action plan will be populated here -->
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="history">
@@ -141,22 +193,75 @@
 
             ws.onmessage = function (event) {
                 const data = JSON.parse(event.data);
-                if (data.type === 'update' && data.show) {
-                    const now = Date.now();
-                    // Only update if enough time has passed or if it's a new action
-                    //if (now - lastUpdateTime > UPDATE_THROTTLE ||
-                    //JSON.stringify(currentAction) !== JSON.stringify(data.current_action)) {
-                    updateScreenshot(data.screenshot);
-                    if (JSON.stringify(currentAction) !== JSON.stringify(data.current_action)) {
-                        currentAction = data.current_action;
-                        updateOverlay(data.current_action);
+                if (data.type === 'update') {
+                    // Update screenshot
+                    if (data.screenshot) {
+                        document.getElementById('screenshot').src = 'data:image/png;base64,' + data.screenshot;
                     }
-                    updateStatus(data);
-                    if (data.current_action) {
-                        addToHistory(data.current_action);
+
+                    // Update action plan
+                    const actionPlanElement = document.getElementById('action-plan');
+                    actionPlanElement.innerHTML = ''; // Clear existing content
+
+                    if (data.action_plan) {
+                        console.log('Received action plan:', data.action_plan); // Debug log
+                        data.action_plan.forEach(action => {
+                            const actionElement = document.createElement('div');
+                            actionElement.className = 'list-group-item';
+
+                            if (action.executed) {
+                                actionElement.classList.add('list-group-item-success');
+                            }
+                            if (action.current) {
+                                actionElement.classList.add('active');
+                            }
+
+                            // Format the action details
+                            let actionText = '';
+                            const actionData = action.action;
+                            // Match the ActionTypes enum from Rust
+                            if (actionData.type === 'Click') {
+                                actionText = `Click: ${actionData.value}`;
+                            } else if (actionData.type === 'ClickPosition') {
+                                const [x, y] = actionData.value;
+                                actionText = `Click at position (${x}, ${y})`;
+                            } else if (actionData.type === 'InsertText') {
+                                actionText = `Type text: "${actionData.value}"`;
+                            } else if (actionData.type === 'KeyPress') {
+                                actionText = `Press key: ${actionData.value}`;
+                            } else if (actionData.type === 'KeyDown') {
+                                actionText = `Key down: ${actionData.value}`;
+                            } else if (actionData.type === 'KeyUp') {
+                                actionText = `Key up: ${actionData.value}`;
+                            } else if (actionData.type === 'GrabScreenshot') {
+                                actionText = 'Capture screenshot';
+                            } else if (actionData.type === 'Replan') {
+                                actionText = 'Replan actions';
+                            } else {
+                                actionText = JSON.stringify(actionData); // Fallback for unknown actions
+                            }
+
+                            // Add status icon
+                            const statusIcon = action.executed ? '✓' : action.current ? '▶' : '⋯';
+                            actionElement.innerHTML = `
+                                <span class="status-icon">${statusIcon}</span>
+                                <span class="action-text">${actionText}</span>
+                            `;
+
+                            actionPlanElement.appendChild(actionElement);
+                        });
                     }
-                    lastUpdateTime = now;
-                    //}
+
+                    // Update computing status
+                    if (data.computing || data.computing_plan) {
+                        const computingElement = document.createElement('div');
+                        computingElement.className = 'list-group-item list-group-item-warning';
+                        computingElement.innerHTML = `
+                            <span class="status-icon">⚙️</span>
+                            <span>Computing next action...</span>
+                        `;
+                        actionPlanElement.appendChild(computingElement);
+                    }
                 }
             };
 
