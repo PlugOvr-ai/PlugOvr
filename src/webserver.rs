@@ -66,6 +66,14 @@ async fn command_handler(
                     .usecase_replay
                     .lock()
                     .unwrap()
+                    .vec_instructions
+                    .lock()
+                    .unwrap()
+                    .clear();
+                state
+                    .usecase_replay
+                    .lock()
+                    .unwrap()
                     .execute_usecase(instruction);
                 state.usecase_replay.lock().unwrap().show = true;
                 *state

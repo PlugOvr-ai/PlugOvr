@@ -49,13 +49,6 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
-        .history {
-            background-color: white;
-            padding: 20px;
-            border-radius: 4px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
         button {
             background-color: #007bff;
             color: white;
@@ -83,15 +76,6 @@
             padding: 10px;
             background-color: #e9ecef;
             border-radius: 4px;
-        }
-
-        .history-item {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .history-item:last-child {
-            border-bottom: none;
         }
 
         .planning {
@@ -153,7 +137,6 @@
 
             <input type="text" id="instructionInput" placeholder="Enter new instruction">
             <button id="executeBtn">Plan Actions</button>
-            <div class="status" id="status">Status: Ready</div>
             <button id="nextBtn">Perform Next Action</button>
         </div>
 
@@ -172,16 +155,10 @@
                 </div>
             </div>
         </div>
-
-        <div class="history">
-            <h2>Action History</h2>
-            <div id="historyList"></div>
-        </div>
     </div>
 
     <script>
         let ws;
-        let history = [];
         let currentScreenshot = null;
         let animationFrame = null;
         let currentAction = null;
@@ -258,7 +235,7 @@
                         computingElement.className = 'list-group-item list-group-item-warning';
                         computingElement.innerHTML = `
                             <span class="status-icon">⚙️</span>
-                            <span>Computing next action...</span>
+                            <span> Planning next steps...</span>
                         `;
                         actionPlanElement.appendChild(computingElement);
                     }
@@ -386,17 +363,7 @@
             }
         }
 
-        function addToHistory(action) {
-            if (history.length === 0 || JSON.stringify(action) !== JSON.stringify(history[0])) {
-                history.unshift(action);
-                if (history.length > 50) history.pop();
 
-                const historyList = document.getElementById('historyList');
-                historyList.innerHTML = history
-                    .map(action => `<div class="history-item">${JSON.stringify(action)}</div>`)
-                    .join('');
-            }
-        }
 
         document.getElementById('nextBtn').onclick = function () {
             fetch('/command', {
