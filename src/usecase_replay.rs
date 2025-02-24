@@ -1306,3 +1306,111 @@ fn load_server_url_execution() -> std::io::Result<String> {
     let server_url: String = serde_json::from_str(&contents)?;
     Ok(server_url)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_example_json() {
+        let json = r#"{
+            "instruction": "Write an email to Cornelius",
+            "actions": [
+              {
+                "type": "Click",
+                "value": "Click on the 'Google Chrome' icon."
+              },
+              {
+                "type": "Click",
+                "value": "Click on the search bar."
+              },
+              {
+                "type": "InsertText",
+                "value": "www.gmail.com"
+              },
+              {
+                "type": "KeyPress",
+                "value": "Return"
+              },
+              {
+                "type": "Click",
+                "value": "Click on 'Schreiben'."
+              },
+              {
+                "type": "Click",
+                "value": "Click on 'An'."
+              },
+              {
+                "type": "InsertText",
+                "value": "info@plugovr.ai"
+              },
+              {
+                "type": "KeyPress",
+                "value": "Return"
+              },
+              {
+                "type": "Click",
+                "value": "Click on 'Betreff'."
+              },
+              {
+                "type": "InsertText",
+                "value": "Hi"
+              },
+              {
+                "type": "Click",
+                "value": "Click on main message field."
+              },
+              {
+                "type": "KeyPress",
+                "value": "Home"
+              },
+              {
+                "type": "KeyPress",
+                "value": "PageUp"
+              },
+              {
+                "type": "InsertText",
+                "value": "Hi Cornelius"
+              },
+              {
+                "type": "Click",
+                "value": "Click on 'Senden'."
+              }
+            ]
+          }"#;
+
+        // Parse the JSON
+        let parsed = serde_json::from_str::<StepFormat>(json);
+        assert!(parsed.is_ok(), "Failed to parse JSON");
+
+        // Verify the parsed content
+        match parsed.unwrap() {
+            StepFormat::SingleStep {
+                instruction,
+                actions,
+            } => {
+                assert_eq!(instruction, "Write an email to Cornelius");
+                assert_eq!(actions.len(), 15);
+
+                // Verify first action
+                assert_eq!(actions[0].action_type, "Click");
+                assert_eq!(actions[0].value, "Click on the 'Google Chrome' icon.");
+
+                // Verify a KeyPress action
+                assert_eq!(actions[3].action_type, "KeyPress");
+                assert_eq!(actions[3].value, "Return");
+
+                // Verify an InsertText action
+                assert_eq!(actions[2].action_type, "InsertText");
+                assert_eq!(actions[2].value, "www.gmail.com");
+
+                // Verify last action
+                assert_eq!(actions[14].action_type, "Click");
+                assert_eq!(actions[14].value, "Click on 'Senden'.");
+            }
+            StepFormat::MultiStep(_) => {
+                panic!("Expected SingleStep format, got MultiStep");
+            }
+        }
+    }
+}
