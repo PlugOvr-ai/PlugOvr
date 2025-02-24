@@ -72,18 +72,21 @@
         }
 
         .status {
-            margin-top: 10px;
-            padding: 10px;
-            background-color: #e9ecef;
+            display: inline-block;
+            margin-left: 10px;
+            padding: 10px 15px;
             border-radius: 4px;
+            background-color: #e9ecef;
         }
 
-        .planning {
-            background-color: #f0f0ff;
+        .status.planning {
+            background-color: #fff3cd;
+            color: #856404;
         }
 
-        .computing {
-            background-color: #fff0f0;
+        .status.computing {
+            background-color: #cce5ff;
+            color: #004085;
         }
 
         .status-icon {
@@ -120,6 +123,29 @@
             background-color: white;
             border-radius: 4px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            max-height: 100%;
+            position: absolute;
+            width: 100%;
+            top: 0;
+        }
+
+        .action-plan-column {
+            position: relative;
+        }
+
+        .screenshot-column,
+        .action-plan-column {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #action-plan {
+            overflow-y: auto;
+            flex-grow: 1;
+            min-height: 0;
         }
 
         .action-text {
@@ -138,13 +164,14 @@
             <input type="text" id="instructionInput" placeholder="Enter new instruction">
             <button id="executeBtn">Plan Actions</button>
             <button id="nextBtn">Perform Next Action</button>
+            <span id="status" class="status">Ready</span>
         </div>
 
         <div class="row g-4">
-            <div class="col-lg-8">
+            <div class="col-lg-8 screenshot-column">
                 <img id="screenshot" class="img-fluid" src="" alt="Screenshot">
             </div>
-            <div class="col-lg-4">
+            <div class="col-lg-4 action-plan-column">
                 <div class="action-plan">
                     <div class="card-header">
                         <h5 class="mb-0">Action Plan</h5>
@@ -191,6 +218,8 @@
                             }
                             if (action.current) {
                                 actionElement.classList.add('active');
+                                // Add a data attribute to identify the current action
+                                actionElement.setAttribute('data-current', 'true');
                             }
 
                             // Format the action details
@@ -227,18 +256,21 @@
 
                             actionPlanElement.appendChild(actionElement);
                         });
+
+                        // Scroll the action plan container (not the page) to show the current action
+                        const currentAction = actionPlanElement.querySelector('[data-current="true"]');
+                        if (currentAction) {
+                            const container = actionPlanElement;
+                            const containerRect = container.getBoundingClientRect();
+                            const elementRect = currentAction.getBoundingClientRect();
+                            const relativeTop = elementRect.top - containerRect.top;
+
+                            container.scrollTop = container.scrollTop + relativeTop - (containerRect.height / 2) + (elementRect.height / 2);
+                        }
                     }
 
-                    // Update computing status
-                    if (data.computing || data.computing_plan) {
-                        const computingElement = document.createElement('div');
-                        computingElement.className = 'list-group-item list-group-item-warning';
-                        computingElement.innerHTML = `
-                            <span class="status-icon">⚙️</span>
-                            <span> Planning next steps...</span>
-                        `;
-                        actionPlanElement.appendChild(computingElement);
-                    }
+                    // Add status update
+                    updateStatus(data);
                 }
             };
 
@@ -340,30 +372,18 @@
 
         function updateStatus(data) {
             const status = document.getElementById('status');
-            let statusText = 'Status: ';
 
             if (data.computing_plan) {
-                statusText += 'Planning next steps...';
+                status.textContent = 'Planning next steps...';
+                status.className = 'status planning';
             } else if (data.computing) {
-                statusText += 'Computing next action...';
-            } else if (data.current_action) {
-                statusText += `Next action: ${JSON.stringify(data.current_action)}`;
+                status.textContent = 'Computing next action...';
+                status.className = 'status computing';
             } else {
-                statusText += 'Ready';
-            }
-
-            status.textContent = statusText;
-
-            // Update status styling based on state
-            status.className = 'status';
-            if (data.computing_plan) {
-                status.classList.add('planning');
-            } else if (data.computing) {
-                status.classList.add('computing');
+                status.textContent = 'Ready';
+                status.className = 'status';
             }
         }
-
-
 
         document.getElementById('nextBtn').onclick = function () {
             fetch('/command', {

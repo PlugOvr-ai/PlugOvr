@@ -133,7 +133,7 @@ async fn handle_socket(socket: WebSocket, state: WebServerState) {
     // Spawn task to capture and send updates
     let update_task = tokio::spawn(async move {
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
             let mut usecase_replay = state_clone.usecase_replay.lock().unwrap();
             usecase_replay.grab_screenshot();
             if let Some(screenshot) = &usecase_replay.monitor1 {
