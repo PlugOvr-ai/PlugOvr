@@ -23,8 +23,9 @@ mod usecase_recorder;
 
 #[cfg(feature = "computeruse_replay")]
 mod usecase_replay;
+#[cfg(feature = "computeruse_remote")]
+mod usecase_webserver;
 mod version_check;
-mod webserver;
 mod window_handling;
 
 #[cfg(feature = "computeruse_record")]
@@ -442,10 +443,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
             });
     }
-    let usecase_replay_clone = usecase_replay.clone();
-    tokio::spawn(async move {
-        webserver::start_server(usecase_replay_clone).await;
-    });
+    #[cfg(feature = "computeruse_remote")]
+    {
+        let usecase_replay_clone = usecase_replay.clone();
+        tokio::spawn(async move {
+            usecase_webserver::start_server(usecase_replay_clone).await;
+        });
+    }
     {
         let text_entry = text_entry.clone();
         let text_entryfield_position = text_entryfield_position.clone();
