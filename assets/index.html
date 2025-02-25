@@ -151,20 +151,45 @@
         .action-text {
             flex-grow: 1;
         }
+
+        .input-group {
+            margin-bottom: 10px;
+        }
+
+        .input-group-text {
+            background-color: #f8f9fa;
+            min-width: 120px;
+        }
     </style>
 </head>
 
 <body>
     <div class="container">
         <h1>PlugOvr Remote Control</h1>
-
         <div class="controls">
-            <h2>Controls</h2>
-
-            <input type="text" id="instructionInput" placeholder="Enter new instruction">
-            <button id="executeBtn">Plan Actions</button>
-            <button id="nextBtn">Perform Next Action</button>
-            <span id="status" class="status">Ready</span>
+            <div class="mb-3">
+                <input type="text" id="instructionInput" placeholder="Enter new instruction">
+                <button id="executeBtn">Plan Actions</button>
+                <button id="nextBtn">Perform Next Action</button>
+                <span id="status" class="status">Ready</span>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text">Planning URL</span>
+                        <input type="text" id="planningUrlInput" class="form-control" placeholder="Enter planning URL">
+                        <button id="setPlanningUrlBtn" class="btn btn-outline-secondary">Set</button>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text">Execution URL</span>
+                        <input type="text" id="executionUrlInput" class="form-control" placeholder="Enter execution URL">
+                        <button id="setExecutionUrlBtn" class="btn btn-outline-secondary">Set</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="row g-4">
@@ -191,6 +216,19 @@
         let currentAction = null;
         let lastUpdateTime = 0;
         const UPDATE_THROTTLE = 50; // Minimum time between updates in ms
+
+        // Fetch current URLs when page loads
+        window.addEventListener('DOMContentLoaded', fetchCurrentUrls);
+
+        function fetchCurrentUrls() {
+            fetch('/urls')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('planningUrlInput').value = data.planning_url;
+                    document.getElementById('executionUrlInput').value = data.execution_url;
+                })
+                .catch(error => console.error('Error fetching URLs:', error));
+        }
 
         function connect() {
             ws = new WebSocket(`ws://${window.location.host}/ws`);
@@ -271,6 +309,22 @@
 
                     // Add status update
                     updateStatus(data);
+                    
+                    // Update URL fields if provided
+                    if (data.planning_url) {
+                        document.getElementById('planningUrlInput').value = data.planning_url;
+                    }
+                    if (data.execution_url) {
+                        document.getElementById('executionUrlInput').value = data.execution_url;
+                    }
+                } else if (data.type === 'url_update') {
+                    // Handle URL updates
+                    if (data.planning_url) {
+                        document.getElementById('planningUrlInput').value = data.planning_url;
+                    }
+                    if (data.execution_url) {
+                        document.getElementById('executionUrlInput').value = data.execution_url;
+                    }
                 }
             };
 
@@ -413,6 +467,45 @@
             });
 
             document.getElementById('instructionInput').value = '';
+        };
+
+        // Add event listeners for URL buttons
+        document.getElementById('setPlanningUrlBtn').onclick = function() {
+            const url = document.getElementById('planningUrlInput').value;
+            if (!url) return;
+            
+            fetch('/urls/planning', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: 'set_planning_url',
+                    url: url
+                })
+            })
+            .then(response => response.text())
+            .then(result => console.log(result))
+            .catch(error => console.error('Error setting planning URL:', error));
+        };
+
+        document.getElementById('setExecutionUrlBtn').onclick = function() {
+            const url = document.getElementById('executionUrlInput').value;
+            if (!url) return;
+            
+            fetch('/urls/execution', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: 'set_execution_url',
+                    url: url
+                })
+            })
+            .then(response => response.text())
+            .then(result => console.log(result))
+            .catch(error => console.error('Error setting execution URL:', error));
         };
 
         // Handle window resize

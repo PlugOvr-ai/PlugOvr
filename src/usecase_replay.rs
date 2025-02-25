@@ -572,20 +572,20 @@ impl UseCaseReplay {
                     self.image_height = image.height();
                     self.monitor1 = Some(resized);
                     // Save resized image to disk for debugging
-                    let debug_path = format!("debug_screenshot.png");
-                    if let Err(e) = self.monitor1.as_ref().unwrap().save(&debug_path) {
-                        println!("Failed to save debug screenshot: {}", e);
-                    } else {
-                        println!("Saved debug screenshot to {}", debug_path);
-                    }
-                    println!(
-                        "monitor1 width: {}",
-                        self.monitor1.as_ref().unwrap().width()
-                    );
-                    println!(
-                        "monitor1 height: {}",
-                        self.monitor1.as_ref().unwrap().height()
-                    );
+                    // let debug_path = format!("debug_screenshot.png");
+                    // if let Err(e) = self.monitor1.as_ref().unwrap().save(&debug_path) {
+                    //     println!("Failed to save debug screenshot: {}", e);
+                    // } else {
+                    //     println!("Saved debug screenshot to {}", debug_path);
+                    // }
+                    // println!(
+                    //     "monitor1 width: {}",
+                    //     self.monitor1.as_ref().unwrap().width()
+                    // );
+                    // println!(
+                    //     "monitor1 height: {}",
+                    //     self.monitor1.as_ref().unwrap().height()
+                    // );
                 }
                 #[cfg(any(target_os = "linux", target_os = "windows"))]
                 {
