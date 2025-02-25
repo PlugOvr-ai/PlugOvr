@@ -27,6 +27,13 @@ struct WebServerState {
 struct WebCommand {
     command: String,
     instruction: Option<String>,
+    url: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct UrlResponse {
+    planning_url: String,
+    execution_url: String,
 }
 
 pub async fn start_server(usecase_replay: Arc<Mutex<UseCaseReplay>>) {
@@ -39,6 +46,9 @@ pub async fn start_server(usecase_replay: Arc<Mutex<UseCaseReplay>>) {
         .route("/", get(index_handler))
         .route("/ws", get(ws_handler))
         .route("/command", post(command_handler))
+        .route("/urls", get(get_urls_handler))
+        .route("/urls/planning", post(set_planning_url_handler))
+        .route("/urls/execution", post(set_execution_url_handler))
         .nest_service("/assets", ServeDir::new("assets"))
         .with_state(state);
 
@@ -49,6 +59,57 @@ pub async fn start_server(usecase_replay: Arc<Mutex<UseCaseReplay>>) {
 
 async fn index_handler() -> impl IntoResponse {
     Html(include_str!("../assets/index.html"))
+}
+
+async fn get_urls_handler(State(state): State<WebServerState>) -> impl IntoResponse {
+    let usecase_replay = state.usecase_replay.lock().unwrap();
+    let response = UrlResponse {
+        planning_url: usecase_replay.server_url_planning.clone(),
+        execution_url: usecase_replay.server_url_execution.clone(),
+    };
+    Json(response)
+}
+
+async fn set_planning_url_handler(
+    State(state): State<WebServerState>,
+    Json(command): Json<WebCommand>,
+) -> impl IntoResponse {
+    if let Some(url) = command.url {
+        let mut usecase_replay = state.usecase_replay.lock().unwrap();
+        usecase_replay.server_url_planning = url.clone();
+        // Broadcast the URL change to all clients
+        let update = serde_json::json!({
+            "type": "url_update",
+            "planning_url": url,
+        });
+        for (_, tx) in state.clients.lock().unwrap().iter() {
+            let _ = tx.send(update.to_string());
+        }
+        "Planning URL updated".to_string()
+    } else {
+        "No URL provided".to_string()
+    }
+}
+
+async fn set_execution_url_handler(
+    State(state): State<WebServerState>,
+    Json(command): Json<WebCommand>,
+) -> impl IntoResponse {
+    if let Some(url) = command.url {
+        let mut usecase_replay = state.usecase_replay.lock().unwrap();
+        usecase_replay.server_url_execution = url.clone();
+        // Broadcast the URL change to all clients
+        let update = serde_json::json!({
+            "type": "url_update",
+            "execution_url": url,
+        });
+        for (_, tx) in state.clients.lock().unwrap().iter() {
+            let _ = tx.send(update.to_string());
+        }
+        "Execution URL updated".to_string()
+    } else {
+        "No URL provided".to_string()
+    }
 }
 
 async fn command_handler(
@@ -196,6 +257,8 @@ async fn handle_socket(socket: WebSocket, state: WebServerState) {
                     "computing": *usecase_replay.computing_action.lock().unwrap(),
                     "computing_plan": *usecase_replay.computing_plan.lock().unwrap(),
                     "show": usecase_replay.show,
+                    "planning_url": usecase_replay.server_url_planning.clone(),
+                    "execution_url": usecase_replay.server_url_execution.clone(),
                 });
                 //println!("Sending update: {}", update);
 
