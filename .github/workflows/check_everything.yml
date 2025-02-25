@@ -3,7 +3,7 @@ on:
   pull_request:
   workflow_dispatch:
 
-name: create release
+name: build and check
 env:
   CARGO_INCREMENTAL: 0
 jobs:

@@ -1,5 +1,7 @@
 # PlugOvr
 
+[![CI Status](https://github.com/PlugOvr-ai/PlugOvr/actions/workflows/check_everything.yml/badge.svg)](https://github.com/PlugOvr-ai/PlugOvr/actions)
+
 PlugOvr is a Rust-based application for AI Assistance that integrates with your favorite applications. With one shortcut you can access PlugOvr from any application. PlugOvr is cross-platform and works on Linux, Windows and MacOS.
 
 Select the text you want to use, write your own instructions or use your favorite templates.
