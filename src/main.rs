@@ -9,6 +9,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use clap::Parser;
+#[cfg(feature = "computeruse_remote")]
+use rand::{distributions::Alphanumeric, Rng};
 
 #[cfg(target_os = "macos")]
 #[macro_use]
@@ -162,8 +165,49 @@ fn handle_text_selection(
     }
 }
 
+// Define command line arguments
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Disable password protection for the webserver
+    #[arg(long)]
+    no_password: bool,
+}
+
+#[cfg(feature = "computeruse_remote")]
+fn generate_random_password(length: usize) -> String {
+    rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(length)
+        .map(char::from)
+        .collect()
+}
+
+#[cfg(feature = "computeruse_remote")]
+fn load_password() -> Option<String> {
+    let password_file = get_config_file("webserver_password.txt");
+    match fs::read_to_string(password_file) {
+        Ok(password) if !password.trim().is_empty() => Some(password.trim().to_string()),
+        _ => None,
+    }
+}
+
+#[cfg(feature = "computeruse_remote")]
+fn save_password(password: &str) {
+    let password_file = get_config_file("webserver_password.txt");
+    if let Err(e) = fs::write(password_file, password) {
+        eprintln!("Failed to save password: {:?}", e);
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    // Parse command line arguments
+    #[cfg(feature = "computeruse_remote")]
+    let args = Args::parse();
+    #[cfg(not(feature = "computeruse_remote"))]
+    let _args = Args::parse(); // Unused if computeruse_remote is not enabled
+
     let text_entry = Arc::new(Mutex::new(false));
     let shortcut_window = Arc::new(Mutex::new(false));
     let control_pressed = Arc::new(Mutex::new(false));
@@ -446,8 +490,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(feature = "computeruse_remote")]
     {
         let usecase_replay_clone = usecase_replay.clone();
+        
+        // Determine password based on command line arguments
+        let password = if args.no_password {
+            println!("Webserver will run without password protection");
+            None
+        } else {
+            // Try to load existing password
+            let password = load_password().unwrap_or_else(|| {
+                // Generate a new random password if none exists
+                let new_password = generate_random_password(8);
+                save_password(&new_password);
+                new_password
+            });
+            Some(password)
+        };
+        
         tokio::spawn(async move {
-            usecase_webserver::start_server(usecase_replay_clone).await;
+            usecase_webserver::start_server(usecase_replay_clone, password).await;
         });
     }
     {

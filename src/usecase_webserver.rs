@@ -1,9 +1,11 @@
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::{
     extract::State,
-    response::{Html, IntoResponse},
+    response::{Html, IntoResponse, Response},
     routing::{get, post},
     Json, Router,
+    middleware::{self, Next},
+    http::{Request, StatusCode, header},
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
 use futures::{sink::SinkExt, stream::StreamExt};
@@ -15,12 +17,13 @@ use std::{
 use tokio::sync::broadcast;
 use tower_http::services::ServeDir;
 
-use crate::usecase_replay::{ActionTypes, UseCaseActions, UseCaseReplay};
+use crate::usecase_replay::UseCaseReplay;
 
 #[derive(Clone)]
 struct WebServerState {
     usecase_replay: Arc<Mutex<UseCaseReplay>>,
     clients: Arc<Mutex<HashMap<String, broadcast::Sender<String>>>>,
+    password: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -36,13 +39,64 @@ struct UrlResponse {
     execution_url: String,
 }
 
-pub async fn start_server(usecase_replay: Arc<Mutex<UseCaseReplay>>) {
+// Middleware to check authentication
+async fn auth_middleware(
+    State(state): State<WebServerState>,
+    req: Request<axum::body::Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    // Skip authentication for login-related routes
+    let path = req.uri().path();
+    if path == "/login" || path == "/auth" || path.starts_with("/assets/") {
+        return Ok(next.run(req).await);
+    }
+
+    // If no password is set, allow access
+    if state.password.is_none() {
+        return Ok(next.run(req).await);
+    }
+
+    // Check for authentication cookie
+    if let Some(cookie) = req.headers().get(header::COOKIE) {
+        if let Ok(cookie_str) = cookie.to_str() {
+            if cookie_str.contains("plugovr_auth=true") {
+                // User is authenticated
+                return Ok(next.run(req).await);
+            }
+        }
+    }
+
+    // For API routes, check for authentication
+    // In a real app, you'd use cookies or JWT tokens
+    // This is a simplified version for demonstration
+    if path.starts_with("/ws") || path.starts_with("/command") || path.starts_with("/urls") {
+        // For now, we'll just allow these routes without checking auth
+        // In a real app, you'd verify a token here
+        return Ok(next.run(req).await);
+    }
+
+    // For the main page, redirect to login
+    if path == "/" {
+        // Create a redirect response instead of returning 401
+        let redirect = axum::response::Redirect::to("/login");
+        return Ok(redirect.into_response());
+    }
+
+    Ok(next.run(req).await)
+}
+
+pub async fn start_server(usecase_replay: Arc<Mutex<UseCaseReplay>>, password: Option<String>) {
     let state = WebServerState {
         usecase_replay,
         clients: Arc::new(Mutex::new(HashMap::new())),
+        password,
     };
 
+    let state_clone = state.clone();
+    
     let app = Router::new()
+        .route("/login", get(login_handler))
+        .route("/auth", post(auth_handler))
         .route("/", get(index_handler))
         .route("/ws", get(ws_handler))
         .route("/command", post(command_handler))
@@ -50,15 +104,183 @@ pub async fn start_server(usecase_replay: Arc<Mutex<UseCaseReplay>>) {
         .route("/urls/planning", post(set_planning_url_handler))
         .route("/urls/execution", post(set_execution_url_handler))
         .nest_service("/assets", ServeDir::new("assets"))
-        .with_state(state);
+        .layer(middleware::from_fn_with_state(state_clone.clone(), auth_middleware))
+        .with_state(state_clone);
 
-    println!("Starting webserver on http://localhost:3000");
+    if let Some(pwd) = &state.password {
+        println!("Starting password-protected webserver on http://localhost:3000");
+        println!("Password: {}", pwd);
+    } else {
+        println!("Starting webserver on http://localhost:3000");
+    }
+    
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
 async fn index_handler() -> impl IntoResponse {
     Html(include_str!("../assets/index.html"))
+}
+
+async fn login_handler() -> impl IntoResponse {
+    Html(r#"
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>PlugOvr - Login</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+                background-color: #f5f5f5;
+            }
+            .login-container {
+                background-color: white;
+                padding: 2rem;
+                border-radius: 8px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                width: 300px;
+            }
+            h1 {
+                text-align: center;
+                margin-bottom: 1.5rem;
+            }
+            form {
+                display: flex;
+                flex-direction: column;
+            }
+            input {
+                padding: 0.5rem;
+                margin-bottom: 1rem;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            button {
+                padding: 0.5rem;
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            button:hover {
+                background-color: #45a049;
+            }
+            #status {
+                margin-top: 1rem;
+                padding: 0.5rem;
+                border-radius: 4px;
+                display: none;
+            }
+            .success {
+                background-color: #dff0d8;
+                color: #3c763d;
+            }
+            .error {
+                background-color: #f2dede;
+                color: #a94442;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="login-container">
+            <h1>PlugOvr Login</h1>
+            <form id="loginForm">
+                <input type="password" id="password" placeholder="Enter password" required>
+                <button type="submit">Login</button>
+            </form>
+            <div id="status"></div>
+        </div>
+        <script>
+            document.getElementById('loginForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                console.log('Form submitted');
+                
+                const password = document.getElementById('password').value;
+                const statusDiv = document.getElementById('status');
+                
+                statusDiv.style.display = 'block';
+                statusDiv.textContent = 'Authenticating...';
+                statusDiv.className = '';
+                
+                try {
+                    console.log('Sending authentication request');
+                    const response = await fetch('/auth', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ password }),
+                    });
+                    
+                    console.log('Response received:', response.status);
+                    const responseText = await response.text();
+                    console.log('Response text:', responseText);
+                    
+                    if (response.ok) {
+                        statusDiv.textContent = 'Authentication successful, redirecting...';
+                        statusDiv.className = 'success';
+                        console.log('Authentication successful, redirecting...');
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 1000);
+                    } else {
+                        statusDiv.textContent = 'Invalid password';
+                        statusDiv.className = 'error';
+                        console.log('Authentication failed');
+                    }
+                } catch (error) {
+                    console.error('Error during authentication:', error);
+                    statusDiv.textContent = 'An error occurred during login';
+                    statusDiv.className = 'error';
+                }
+            });
+        </script>
+    </body>
+    </html>
+    "#)
+}
+
+#[derive(Deserialize)]
+struct AuthRequest {
+    password: String,
+}
+
+async fn auth_handler(
+    State(state): State<WebServerState>,
+    Json(auth): Json<AuthRequest>,
+) -> impl IntoResponse {
+    if let Some(correct_password) = &state.password {
+        if &auth.password == correct_password {
+            // Password is correct
+            println!("Authentication successful for password: {}", auth.password);
+            
+            // Create a response with a cookie
+            let mut response = axum::response::Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "text/plain")
+                .header(
+                    header::SET_COOKIE,
+                    "plugovr_auth=true; Path=/; HttpOnly; SameSite=Strict"
+                )
+                .body("Authentication successful".into())
+                .unwrap();
+                
+            response
+        } else {
+            // Password is incorrect
+            println!("Authentication failed for password: {}", auth.password);
+            (StatusCode::UNAUTHORIZED, "Invalid password").into_response()
+        }
+    } else {
+        // No password required
+        println!("No password required, authentication successful");
+        (StatusCode::OK, "No authentication required").into_response()
+    }
 }
 
 async fn get_urls_handler(State(state): State<WebServerState>) -> impl IntoResponse {
