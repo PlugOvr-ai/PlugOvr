@@ -40,6 +40,167 @@ impl UsecaseEditor {
                             if let Ok(usecase) = serde_json::from_str::<UseCase>(&contents) {
                                 self.usecase = Some(usecase);
                                 self.current_step = 0;
+                                // Clear existing cached textures
+                                self.cached_textures.clear();
+
+                                // Pre-cache textures for all images in the usecase
+
+                                for (step_index, step) in self
+                                    .usecase
+                                    .as_ref()
+                                    .unwrap()
+                                    .usecase_steps
+                                    .iter()
+                                    .enumerate()
+                                {
+                                    match step {
+                                        EventType::Monitor1(data) => {
+                                            if let Ok(image_data) = base64::decode(data) {
+                                                if let Ok(image) =
+                                                    image::load_from_memory(&image_data)
+                                                {
+                                                    display_step_image(
+                                                        ui,
+                                                        data,
+                                                        &format!("image_{}", step_index),
+                                                        (-1, -1),
+                                                        &mut self.cached_textures,
+                                                        false,
+                                                        2.0,
+                                                    );
+                                                    display_step_image(
+                                                        ui,
+                                                        data,
+                                                        &format!("image_thump_{}", step_index),
+                                                        (-1, -1),
+                                                        &mut self.cached_textures,
+                                                        false,
+                                                        8.0,
+                                                    );
+                                                    /*let size =
+                                                        [image.width() as _, image.height() as _];
+                                                    let image_buffer = image.to_rgba8();
+                                                    let image_buffer = image::imageops::resize(
+                                                        &image_buffer,
+                                                        image.width() / 2,
+                                                        image.height() / 2,
+                                                        image::imageops::FilterType::CatmullRom,
+                                                    );
+                                                    let pixels = image_buffer.as_flat_samples();
+                                                    let color_image =
+                                                        egui::ColorImage::from_rgba_unmultiplied(
+                                                            size,
+                                                            pixels.as_slice(),
+                                                        );
+                                                    let texture = ui.ctx().load_texture(
+                                                        format!("image_{}", step_index),
+                                                        color_image,
+                                                        egui::TextureOptions::default(),
+                                                    );
+                                                    self.cached_textures.insert(
+                                                        format!("image_{}", step_index),
+                                                        texture,
+                                                    );
+
+                                                    let image_buffer = image::imageops::resize(
+                                                        &image_buffer,
+                                                        image.width() / 8,
+                                                        image.height() / 8,
+                                                        image::imageops::FilterType::CatmullRom,
+                                                    );
+                                                    let pixels = image_buffer.as_flat_samples();
+                                                    let color_image =
+                                                        egui::ColorImage::from_rgba_unmultiplied(
+                                                            size,
+                                                            pixels.as_slice(),
+                                                        );
+                                                    let texture = ui.ctx().load_texture(
+                                                        format!("image_thump_{}", step_index),
+                                                        color_image,
+                                                        egui::TextureOptions::default(),
+                                                    );
+                                                    self.cached_textures.insert(
+                                                        format!("image_thump_{}", step_index),
+                                                        texture,
+                                                    );*/
+                                                }
+                                            }
+                                        }
+                                        EventType::Monitor2(data) => {
+                                            display_step_image(
+                                                ui,
+                                                data,
+                                                &format!("image_{}", step_index),
+                                                (-1, -1),
+                                                &mut self.cached_textures,
+                                                false,
+                                                2.0,
+                                            );
+                                            display_step_image(
+                                                ui,
+                                                data,
+                                                &format!("image_thump_{}", step_index),
+                                                (-1, -1),
+                                                &mut self.cached_textures,
+                                                false,
+                                                8.0,
+                                            );
+                                            /* if let Ok(image_data) = base64::decode(data) {
+                                                if let Ok(image) =
+                                                    image::load_from_memory(&image_data)
+                                                {
+                                                    let size =
+                                                        [image.width() as _, image.height() as _];
+                                                    let image_buffer = image.to_rgba8();
+                                                    let image_buffer = image::imageops::resize(
+                                                        &image_buffer,
+                                                        image.width() / 2,
+                                                        image.height() / 2,
+                                                        image::imageops::FilterType::CatmullRom,
+                                                    );
+                                                    let pixels = image_buffer.as_flat_samples();
+                                                    let color_image =
+                                                        egui::ColorImage::from_rgba_unmultiplied(
+                                                            size,
+                                                            pixels.as_slice(),
+                                                        );
+                                                    let texture = ui.ctx().load_texture(
+                                                        format!("image_{}", step_index),
+                                                        color_image,
+                                                        egui::TextureOptions::default(),
+                                                    );
+                                                    self.cached_textures.insert(
+                                                        format!("image_{}", step_index),
+                                                        texture,
+                                                    );
+
+                                                    let image_buffer = image::imageops::resize(
+                                                        &image_buffer,
+                                                        image.width() / 8,
+                                                        image.height() / 8,
+                                                        image::imageops::FilterType::CatmullRom,
+                                                    );
+                                                    let pixels = image_buffer.as_flat_samples();
+                                                    let color_image =
+                                                        egui::ColorImage::from_rgba_unmultiplied(
+                                                            size,
+                                                            pixels.as_slice(),
+                                                        );
+                                                    let texture = ui.ctx().load_texture(
+                                                        format!("image_thump_{}", step_index),
+                                                        color_image,
+                                                        egui::TextureOptions::default(),
+                                                    );
+                                                    self.cached_textures.insert(
+                                                        format!("image_thump_{}", step_index),
+                                                        texture,
+                                                    );
+                                                }
+                                            }*/
+                                        }
+                                        _ => {}
+                                    }
+                                }
                             }
                         }
                     }
@@ -111,21 +272,92 @@ impl UsecaseEditor {
                     ui.label("Description:");
                     ui.text_edit_singleline(desc);
                     // Search backwards for the most recent Monitor1 event
-                    if let Some(monitor_data) = prev_steps.iter().rev().find_map(|step| {
-                        if let EventType::Monitor1(data) = step {
-                            Some(data)
-                        } else {
-                            None
-                        }
-                    }) {
+                    if let Some((monitor_index, monitor_data)) =
+                        prev_steps.iter().enumerate().rev().find_map(|(i, step)| {
+                            if let EventType::Monitor1(data) = step {
+                                Some((i, data))
+                            } else {
+                                None
+                            }
+                        })
+                    {
                         display_step_image(
                             ui,
                             monitor_data,
-                            &format!("image_{}", current_step),
+                            &format!("image_{}", monitor_index),
                             (point.x as i32, point.y as i32),
                             &mut self.cached_textures,
+                            true,
+                            2.0,
                         );
                     }
+                    egui::ScrollArea::horizontal().show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            // Show thumbnails of Monitor1 images before and after current step
+                            let thumbnail_size = egui::Vec2::new(100.0, 60.0);
+
+                            // Look back up to 3 Monitor1 images
+                            let mut before_images = prev_steps
+                                .iter()
+                                .enumerate()
+                                .filter_map(|(i, step)| {
+                                    if let EventType::Monitor1(data) = step {
+                                        Some((i, data))
+                                    } else {
+                                        None
+                                    }
+                                })
+                                // .take(3)
+                                .collect::<Vec<_>>();
+
+                            // Look forward up to 3 Monitor1 images
+                            let after_images = current_and_after
+                                .iter()
+                                .enumerate()
+                                .filter_map(|(i, step)| {
+                                    if let EventType::Monitor1(data) = step {
+                                        Some((i + current_step, data))
+                                    } else {
+                                        None
+                                    }
+                                })
+                                //  .take(3)
+                                .collect::<Vec<_>>();
+
+                            // Show before images
+                            for (i, (monitor_index, data)) in before_images.iter().enumerate() {
+                                let offset = -(before_images.len() as i32) + i as i32 + 1;
+                                ui.vertical(|ui| {
+                                    ui.label(format!("T{}", offset));
+                                    display_step_image(
+                                        ui,
+                                        data,
+                                        &format!("image_thump_{}", monitor_index),
+                                        (-1, -1),
+                                        &mut self.cached_textures,
+                                        true,
+                                        8.0,
+                                    );
+                                });
+                            }
+
+                            // Show after images
+                            for (i, (monitor_index, data)) in after_images.iter().enumerate() {
+                                ui.vertical(|ui| {
+                                    ui.label(format!("T+{}", i + 1));
+                                    display_step_image(
+                                        ui,
+                                        data,
+                                        &format!("image_thump_{}", monitor_index),
+                                        (-1, -1),
+                                        &mut self.cached_textures,
+                                        true,
+                                        8.0,
+                                    );
+                                });
+                            }
+                        });
+                    });
                 }
                 EventType::Monitor1(data) => {
                     ui.label("Monitor1");
@@ -135,6 +367,8 @@ impl UsecaseEditor {
                         &format!("image_{}", current_step),
                         (-1, -1),
                         &mut self.cached_textures,
+                        true,
+                        2.0,
                     );
                 }
                 EventType::Monitor2(data) => {
@@ -145,6 +379,8 @@ impl UsecaseEditor {
                         &format!("image_{}", current_step),
                         (-1, -1),
                         &mut self.cached_textures,
+                        true,
+                        2.0,
                     );
                 }
                 EventType::Monitor3(data) => {
@@ -155,6 +391,8 @@ impl UsecaseEditor {
                         &format!("image_{}", current_step),
                         (-1, -1),
                         &mut self.cached_textures,
+                        true,
+                        2.0,
                     );
                 }
                 EventType::Text(text) => {
@@ -187,9 +425,28 @@ fn display_step_image(
     texture_id: &str,
     coords: (i32, i32),
     cached_textures: &mut std::collections::HashMap<String, egui::TextureHandle>,
+    show_image: bool,
+    scale: f32,
 ) {
     if let Some(texture) = cached_textures.get(texture_id) {
-        ui.image(texture);
+        if show_image {
+            let before_rect = ui.cursor();
+            ui.add(egui::Image::new(texture));
+            let after_rect = ui.cursor();
+            // Draw circle at cursor position
+            if coords.0 != -1 && coords.1 != -1 {
+                // Scale click coordinates to match displayed image size
+                let circle_x = before_rect.min.x + (coords.0 as f32 / scale);
+                let circle_y = before_rect.min.y + (coords.1 as f32 / scale);
+
+                let circle_pos = egui::pos2(circle_x, circle_y);
+                let circle_radius = 5.0;
+
+                // Draw red circle
+                ui.painter()
+                    .circle_filled(circle_pos, circle_radius, egui::Color32::RED);
+            }
+        }
         return;
     }
 
@@ -197,40 +454,40 @@ fn display_step_image(
         if let Ok(image) = image::load_from_memory(&image_data) {
             // Draw a red circle at click coordinates
             let mut image = image.to_rgba8();
-            let radius = 10;
-            let color = image::Rgba([255, 0, 0, 255]); // Red circle
+            // let radius = 10;
+            // let color = image::Rgba([255, 0, 0, 255]); // Red circle
 
-            // Scale coords to match resized image dimensions
-            let scaled_x = coords.0;
-            let scaled_y = coords.1;
-            if scaled_x != -1 && scaled_y != -1 {
-                // Draw circle by iterating over pixels in bounding box
-                for y in -radius..=radius {
-                    for x in -radius..=radius {
-                        // Check if point is within circle using distance formula
-                        if x * x + y * y <= radius * radius {
-                            let px = scaled_x + x;
-                            let py = scaled_y + y;
+            // // Scale coords to match resized image dimensions
+            // let scaled_x = coords.0;
+            // let scaled_y = coords.1;
+            // if scaled_x != -1 && scaled_y != -1 {
+            //     // Draw circle by iterating over pixels in bounding box
+            //     for y in -radius..=radius {
+            //         for x in -radius..=radius {
+            //             // Check if point is within circle using distance formula
+            //             if x * x + y * y <= radius * radius {
+            //                 let px = scaled_x + x;
+            //                 let py = scaled_y + y;
 
-                            // Only draw if within image bounds
-                            if px >= 0
-                                && px < image.width() as i32
-                                && py >= 0
-                                && py < image.height() as i32
-                            {
-                                image.put_pixel(px as u32, py as u32, color);
-                            }
-                        }
-                    }
-                }
-            }
+            //                 // Only draw if within image bounds
+            //                 if px >= 0
+            //                     && px < image.width() as i32
+            //                     && py >= 0
+            //                     && py < image.height() as i32
+            //                 {
+            //                     image.put_pixel(px as u32, py as u32, color);
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
 
             let image = image::DynamicImage::ImageRgba8(image);
 
             let image = image::imageops::resize(
                 &image,
-                image.width() / 2,
-                image.height() / 2,
+                image.width() / scale as u32,
+                image.height() / scale as u32,
                 image::imageops::FilterType::CatmullRom,
             );
             let size = image.dimensions();
@@ -242,7 +499,51 @@ fn display_step_image(
                 .ctx()
                 .load_texture(texture_id, image, egui::TextureOptions::default());
             cached_textures.insert(texture_id.to_string(), texture.clone());
-            ui.image(&texture);
+            if show_image {
+                ui.image(&texture);
+            }
+        }
+    }
+}
+fn display_thumpnails_prio_and_post_clicks(
+    ui: &mut egui::Ui,
+    monitor_data: &str,
+    texture_id: &str,
+    coords: (i32, i32),
+    cached_textures: &mut std::collections::HashMap<String, egui::TextureHandle>,
+    show_image: bool,
+) {
+    if let Some(texture) = cached_textures.get(texture_id) {
+        if show_image {
+            ui.image(texture);
+        }
+        return;
+    }
+
+    if let Ok(image_data) = base64::decode(monitor_data) {
+        if let Ok(image) = image::load_from_memory(&image_data) {
+            let image = image::imageops::resize(
+                &image,
+                image.width() / 8,
+                image.height() / 8,
+                image::imageops::FilterType::CatmullRom,
+            );
+            let size = image.dimensions();
+            let image =
+                egui::ColorImage::from_rgba_unmultiplied([size.0 as _, size.1 as _], &image);
+            // Draw a circle at the click coordinates, scaled down to match the thumbnail size
+            // let scaled_x = coords.0 as f32 / 8.0;
+            // let scaled_y = coords.1 as f32 / 8.0;
+            // let circle =
+            //     egui::Shape::circle_filled(egui::pos2(scaled_x, scaled_y), 4.0, egui::Color32::RED);
+            // ui.painter().add(circle);
+            let texture = ui
+                .ctx()
+                .load_texture(texture_id, image, egui::TextureOptions::default());
+            cached_textures.insert(texture_id.to_string(), texture.clone());
+            if show_image {
+                ui.image(&texture);
+            }
         }
     }
 }
