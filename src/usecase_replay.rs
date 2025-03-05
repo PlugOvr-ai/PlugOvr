@@ -28,6 +28,8 @@ use std::fs::File;
 use std::io::Cursor;
 use std::io::Read;
 use std::io::Write;
+
+use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
@@ -112,7 +114,7 @@ impl UseCaseReplay {
         let server_url_planning =
             load_server_url_planning().unwrap_or("http://127.0.0.1:8000/v1".to_string());
         let server_url_execution =
-            load_server_url_execution().unwrap_or("http://127.0.0.1:8000/v1".to_string());
+            load_server_url_execution().unwrap_or("http://127.0.0.1:5001".to_string());
         Self {
             index_instruction: Arc::new(Mutex::new(0)),
             index_action: Arc::new(Mutex::new(0)),
@@ -183,9 +185,9 @@ impl UseCaseReplay {
         }
     }
 
-    pub fn load_usecase(&mut self, filename: String) {
-        let file = File::open(filename).unwrap();
-        let usecase: UseCase = serde_json::from_reader(file).unwrap();
+    pub fn load_usecase(&mut self, filename: String) -> Result<(), Box<dyn Error>> {
+        let file = File::open(filename)?;
+        let usecase: UseCase = serde_json::from_reader(file)?;
         //println!("usecase: {:?}", usecase);
 
         let mut usecase_actions = UseCaseActions {
@@ -221,6 +223,7 @@ impl UseCaseReplay {
         }
 
         self.recorded_usecases.push(usecase_actions);
+        Ok(())
     }
 
     pub fn generate_usecase_actions(&mut self, instruction: &str) {
@@ -237,71 +240,72 @@ impl UseCaseReplay {
         let server_url_execution = self.server_url_execution.clone();
         // Relies on OPENAI_KEY and optionally OPENAI_BASE_URL.
 
-        let examplejson = r#"{
-            "instruction": "Write an email to Cornelius",
-            "actions": [
-              {
-                "type": "Click",
-                "value": "Click on the 'Google Chrome' icon."
-              },
-              {
-                "type": "Click",
-                "value": "Click on the search bar."
-              },
-              {
-                "type": "InsertText",
-                "value": "www.gmail.com"
-              },
-              {
-                "type": "KeyPress",
-                "value": "Return"
-              },
-              {
-                "type": "Click",
-                "value": "Click on 'Schreiben'."
-              },
-              {
-                "type": "Click",
-                "value": "Click on 'An'."
-              },
-              {
-                "type": "InsertText",
-                "value": "info@plugovr.ai"
-              },
-              {
-                "type": "KeyPress",
-                "value": "Return"
-              },
-              {
-                "type": "Click",
-                "value": "Click on 'Betreff'."
-              },
-              {
-                "type": "InsertText",
-                "value": "Hi"
-              },
-              {
-                "type": "Click",
-                "value": "Click on main message field."
-              },
-              {
-                "type": "KeyPress",
-                "value": "Home"
-              },
-              {
-                "type": "KeyPress",
-                "value": "PageUp"
-              },
-              {
-                "type": "InsertText",
-                "value": "Hi Cornelius"
-              },
-              {
-                "type": "Click",
-                "value": "Click on 'Senden'."
-              }
-            ]
-          }"#;
+        let mut examplejson = r#"{
+    "instruction": "Write an email to Cornelius",
+    "actions": [
+        {
+        "type": "Click",
+        "value": "Click on the 'Google Chrome' icon."
+        },
+        {
+        "type": "Click",
+        "value": "Click on the search bar."
+        },
+        {
+        "type": "InsertText",
+        "value": "www.gmail.com"
+        },
+        {
+        "type": "KeyPress",
+        "value": "Return"
+        },
+        {
+        "type": "Click",
+        "value": "Click on 'Schreiben'."
+        },
+        {
+        "type": "Click",
+        "value": "Click on 'An'."
+        },
+        {
+        "type": "InsertText",
+        "value": "info@plugovr.ai"
+        },
+        {
+        "type": "KeyPress",
+        "value": "Return"
+        },
+        {
+        "type": "Click",
+        "value": "Click on 'Betreff'."
+        },
+        {
+        "type": "InsertText",
+        "value": "Hi"
+        },
+        {
+        "type": "Click",
+        "value": "Click on main message field."
+        },
+        {
+        "type": "KeyPress",
+        "value": "Home"
+        },
+        {
+        "type": "KeyPress",
+        "value": "PageUp"
+        },
+        {
+        "type": "InsertText",
+        "value": "Hi Cornelius"
+        },
+        {
+        "type": "Click",
+        "value": "Click on 'Senden'."
+        }
+    ]
+}"#
+        .to_string();
 
         let example_calendar_json = r#"{
             "instruction": "Add a new event to the calendar 'Plugovr Meeting'",
@@ -373,7 +377,7 @@ impl UseCaseReplay {
             .iter()
             .map(|usecase| {
                 format!(
-                    "Here is an example of the JSON format: {}",
+                    "Here is an example of the JSON format:\n{}\n",
                     serde_json::to_string_pretty(&usecase).unwrap()
                 )
             })
@@ -381,10 +385,15 @@ impl UseCaseReplay {
             .join("\n");
         // println!("{}", examplejson);
         println!("{}", add_examples);
+        if add_examples.is_empty() {
+            examplejson = format!("Here is an example of the JSON format:\n{}\n", examplejson);
+        }
         let system_prompt = format!(
-            "You are an expert in controlling a computer, you can click on the screen, write text, and press keys. {} {} think about the steps to complete the task, jump to the beginning of large text boxes with Home and PageUp, output the actions in JSON format.",
+            "You are an expert in controlling a computer, you can click on the screen, write text, and press keys.{} {} think about the steps to complete the task, jump to the beginning of large text boxes with Home and PageUp, output the actions in JSON format.",
             add_examples,examplejson
         );
+
+        println!("system_prompt: {}", system_prompt);
 
         // Convert monitor1 to base64 string
         let base64_image = match monitor1 {

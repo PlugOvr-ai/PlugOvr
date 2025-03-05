@@ -5,13 +5,13 @@
 //#![deny(unused_must_use)]
 
 #![windows_subsystem = "windows"]
+use clap::Parser;
+#[cfg(feature = "computeruse_remote")]
+use rand::{distributions::Alphanumeric, Rng};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use clap::Parser;
-#[cfg(feature = "computeruse_remote")]
-use rand::{distributions::Alphanumeric, Rng};
 
 #[cfg(target_os = "macos")]
 #[macro_use]
@@ -252,7 +252,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         #[cfg(feature = "computeruse_replay")]
         let usecase_replay = usecase_replay.clone();
         #[cfg(feature = "computeruse_replay")]
-        usecase_replay
+        let _ = usecase_replay
             .lock()
             .unwrap()
             .load_usecase("calendar.json".to_string());
@@ -490,7 +490,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(feature = "computeruse_remote")]
     {
         let usecase_replay_clone = usecase_replay.clone();
-        
+
         // Determine password based on command line arguments
         let password = if args.no_password {
             println!("Webserver will run without password protection");
@@ -505,7 +505,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             });
             Some(password)
         };
-        
+
         tokio::spawn(async move {
             usecase_webserver::start_server(usecase_replay_clone, password).await;
         });
