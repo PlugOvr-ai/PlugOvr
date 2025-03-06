@@ -329,7 +329,8 @@ impl UsecaseEditor {
                                 let offset = -(before_images.len() as i32) + i as i32 + 1;
                                 ui.vertical(|ui| {
                                     ui.label(format!("T{}", offset));
-                                    display_step_image(
+                                    // Add hover functionality to thumbnail
+                                    let response = display_step_image(
                                         ui,
                                         data,
                                         &format!("image_thump_{}", monitor_index),
@@ -338,6 +339,35 @@ impl UsecaseEditor {
                                         true,
                                         8.0,
                                     );
+
+                                    // Show larger image on hover
+                                    if response.hovered() {
+                                        egui::Window::new(format!(
+                                            "hover_preview_{}",
+                                            monitor_index
+                                        ))
+                                        .fixed_pos(ui.input(|i| {
+                                            let pos = i.pointer.hover_pos().unwrap_or_default();
+                                            pos + egui::vec2(20.0, 20.0) // Offset from cursor
+                                        }))
+                                        .title_bar(false)
+                                        .frame(egui::Frame::none())
+                                        .auto_sized()
+                                        .show(
+                                            ui.ctx(),
+                                            |ui| {
+                                                display_step_image(
+                                                    ui,
+                                                    data,
+                                                    &format!("image_{}", monitor_index),
+                                                    (-1, -1),
+                                                    &mut self.cached_textures,
+                                                    true,
+                                                    2.0,
+                                                );
+                                            },
+                                        );
+                                    }
                                 });
                             }
 
@@ -345,7 +375,8 @@ impl UsecaseEditor {
                             for (i, (monitor_index, data)) in after_images.iter().enumerate() {
                                 ui.vertical(|ui| {
                                     ui.label(format!("T+{}", i + 1));
-                                    display_step_image(
+                                    // Add hover functionality to thumbnail
+                                    let response = display_step_image(
                                         ui,
                                         data,
                                         &format!("image_thump_{}", monitor_index),
@@ -354,6 +385,35 @@ impl UsecaseEditor {
                                         true,
                                         8.0,
                                     );
+
+                                    // Show larger image on hover
+                                    if response.hovered() {
+                                        egui::Window::new(format!(
+                                            "hover_preview_{}",
+                                            monitor_index
+                                        ))
+                                        .fixed_pos(ui.input(|i| {
+                                            let pos = i.pointer.hover_pos().unwrap_or_default();
+                                            pos + egui::vec2(20.0, 20.0) // Offset from cursor
+                                        }))
+                                        .title_bar(false)
+                                        .frame(egui::Frame::none())
+                                        .auto_sized()
+                                        .show(
+                                            ui.ctx(),
+                                            |ui| {
+                                                display_step_image(
+                                                    ui,
+                                                    data,
+                                                    &format!("image_{}", monitor_index),
+                                                    (-1, -1),
+                                                    &mut self.cached_textures,
+                                                    true,
+                                                    2.0,
+                                                );
+                                            },
+                                        );
+                                    }
                                 });
                             }
                         });
@@ -427,11 +487,11 @@ fn display_step_image(
     cached_textures: &mut std::collections::HashMap<String, egui::TextureHandle>,
     show_image: bool,
     scale: f32,
-) {
+) -> egui::Response {
     if let Some(texture) = cached_textures.get(texture_id) {
         if show_image {
             let before_rect = ui.cursor();
-            ui.add(egui::Image::new(texture));
+            let response = ui.add(egui::Image::new(texture));
             let after_rect = ui.cursor();
             // Draw circle at cursor position
             if coords.0 != -1 && coords.1 != -1 {
@@ -446,8 +506,9 @@ fn display_step_image(
                 ui.painter()
                     .circle_filled(circle_pos, circle_radius, egui::Color32::RED);
             }
+            return response;
         }
-        return;
+        return ui.allocate_response(egui::Vec2::ZERO, egui::Sense::hover());
     }
 
     if let Ok(image_data) = base64::decode(monitor_data) {
@@ -504,7 +565,11 @@ fn display_step_image(
             }
         }
     }
+
+    // Return a default response if we didn't show an image
+    ui.allocate_response(egui::Vec2::ZERO, egui::Sense::hover())
 }
+
 fn display_thumpnails_prio_and_post_clicks(
     ui: &mut egui::Ui,
     monitor_data: &str,
