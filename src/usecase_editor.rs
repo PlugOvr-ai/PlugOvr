@@ -77,52 +77,6 @@ impl UsecaseEditor {
                                                         false,
                                                         8.0,
                                                     );
-                                                    /*let size =
-                                                        [image.width() as _, image.height() as _];
-                                                    let image_buffer = image.to_rgba8();
-                                                    let image_buffer = image::imageops::resize(
-                                                        &image_buffer,
-                                                        image.width() / 2,
-                                                        image.height() / 2,
-                                                        image::imageops::FilterType::CatmullRom,
-                                                    );
-                                                    let pixels = image_buffer.as_flat_samples();
-                                                    let color_image =
-                                                        egui::ColorImage::from_rgba_unmultiplied(
-                                                            size,
-                                                            pixels.as_slice(),
-                                                        );
-                                                    let texture = ui.ctx().load_texture(
-                                                        format!("image_{}", step_index),
-                                                        color_image,
-                                                        egui::TextureOptions::default(),
-                                                    );
-                                                    self.cached_textures.insert(
-                                                        format!("image_{}", step_index),
-                                                        texture,
-                                                    );
-
-                                                    let image_buffer = image::imageops::resize(
-                                                        &image_buffer,
-                                                        image.width() / 8,
-                                                        image.height() / 8,
-                                                        image::imageops::FilterType::CatmullRom,
-                                                    );
-                                                    let pixels = image_buffer.as_flat_samples();
-                                                    let color_image =
-                                                        egui::ColorImage::from_rgba_unmultiplied(
-                                                            size,
-                                                            pixels.as_slice(),
-                                                        );
-                                                    let texture = ui.ctx().load_texture(
-                                                        format!("image_thump_{}", step_index),
-                                                        color_image,
-                                                        egui::TextureOptions::default(),
-                                                    );
-                                                    self.cached_textures.insert(
-                                                        format!("image_thump_{}", step_index),
-                                                        texture,
-                                                    );*/
                                                 }
                                             }
                                         }
@@ -145,58 +99,6 @@ impl UsecaseEditor {
                                                 false,
                                                 8.0,
                                             );
-                                            /* if let Ok(image_data) = base64::decode(data) {
-                                                if let Ok(image) =
-                                                    image::load_from_memory(&image_data)
-                                                {
-                                                    let size =
-                                                        [image.width() as _, image.height() as _];
-                                                    let image_buffer = image.to_rgba8();
-                                                    let image_buffer = image::imageops::resize(
-                                                        &image_buffer,
-                                                        image.width() / 2,
-                                                        image.height() / 2,
-                                                        image::imageops::FilterType::CatmullRom,
-                                                    );
-                                                    let pixels = image_buffer.as_flat_samples();
-                                                    let color_image =
-                                                        egui::ColorImage::from_rgba_unmultiplied(
-                                                            size,
-                                                            pixels.as_slice(),
-                                                        );
-                                                    let texture = ui.ctx().load_texture(
-                                                        format!("image_{}", step_index),
-                                                        color_image,
-                                                        egui::TextureOptions::default(),
-                                                    );
-                                                    self.cached_textures.insert(
-                                                        format!("image_{}", step_index),
-                                                        texture,
-                                                    );
-
-                                                    let image_buffer = image::imageops::resize(
-                                                        &image_buffer,
-                                                        image.width() / 8,
-                                                        image.height() / 8,
-                                                        image::imageops::FilterType::CatmullRom,
-                                                    );
-                                                    let pixels = image_buffer.as_flat_samples();
-                                                    let color_image =
-                                                        egui::ColorImage::from_rgba_unmultiplied(
-                                                            size,
-                                                            pixels.as_slice(),
-                                                        );
-                                                    let texture = ui.ctx().load_texture(
-                                                        format!("image_thump_{}", step_index),
-                                                        color_image,
-                                                        egui::TextureOptions::default(),
-                                                    );
-                                                    self.cached_textures.insert(
-                                                        format!("image_thump_{}", step_index),
-                                                        texture,
-                                                    );
-                                                }
-                                            }*/
                                         }
                                         _ => {}
                                     }
@@ -258,19 +160,29 @@ impl UsecaseEditor {
             // Show current step
             let current_step = self.current_step;
             let (prev_steps, current_and_after) = usecase.usecase_steps.split_at_mut(current_step);
-            let step = &mut current_and_after[0];
-            // let pretty = serde_json::to_string_pretty(&step).unwrap_or_default();
-            // let mut text = pretty.clone();
-            // if ui.text_edit_multiline(&mut text).changed() {
-            //     // Handle text changes if needed
-            // }
 
-            // Handle click events and monitor data
+            // Collect after images before match
+            let (step, after_images) = current_and_after.split_first_mut().unwrap();
+            let after_images: Vec<_> = after_images
+                .iter()
+                .enumerate()
+                .filter_map(|(i, step)| {
+                    if let EventType::Monitor1(data) = step {
+                        Some((i + current_step + 1, data))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
             match step {
                 EventType::Click(point, desc, ids) => {
                     ui.label(format!("Click coordinates: ({}, {})", point.x, point.y));
                     ui.label("Description:");
-                    ui.text_edit_singleline(desc);
+                    let mut desc_clone = desc.clone();
+                    if ui.text_edit_singleline(&mut desc_clone).changed() {
+                        *desc = desc_clone;
+                    }
                     // Search backwards for the most recent Monitor1 event
                     if let Some((monitor_index, monitor_data)) =
                         prev_steps.iter().enumerate().rev().find_map(|(i, step)| {
@@ -281,7 +193,7 @@ impl UsecaseEditor {
                             }
                         })
                     {
-                        display_step_image(
+                        let _ = display_step_image(
                             ui,
                             monitor_data,
                             &format!("image_{}", monitor_index),
@@ -292,44 +204,44 @@ impl UsecaseEditor {
                         );
                     }
                     let point = (point.x as i32, point.y as i32);
+
+                    let mut before_images = prev_steps
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, step)| {
+                            if let EventType::Monitor1(data) = step {
+                                Some((i, data))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    let mut ids_tmp = ids.clone();
                     egui::ScrollArea::horizontal().show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            // Show thumbnails of Monitor1 images before and after current step
                             let thumbnail_size = egui::Vec2::new(100.0, 60.0);
-
-                            // Look back up to 3 Monitor1 images
-                            let mut before_images = prev_steps
-                                .iter()
-                                .enumerate()
-                                .filter_map(|(i, step)| {
-                                    if let EventType::Monitor1(data) = step {
-                                        Some((i, data))
-                                    } else {
-                                        None
-                                    }
-                                })
-                                // .take(3)
-                                .collect::<Vec<_>>();
-
-                            // Look forward up to 3 Monitor1 images
-                            let after_images = current_and_after
-                                .iter()
-                                .enumerate()
-                                .filter_map(|(i, step)| {
-                                    if let EventType::Monitor1(data) = step {
-                                        Some((i + current_step, data))
-                                    } else {
-                                        None
-                                    }
-                                })
-                                //  .take(3)
-                                .collect::<Vec<_>>();
 
                             // Show before images
                             for (i, (monitor_index, data)) in before_images.iter().enumerate() {
                                 let offset = -(before_images.len() as i32) + i as i32 + 1;
                                 ui.vertical(|ui| {
                                     ui.label(format!("T{}", offset));
+                                    // Add checkbox
+                                    let is_selected = ids_tmp.contains(monitor_index);
+                                    let mut checked = is_selected;
+                                    if ui.checkbox(&mut checked, "").changed() {
+                                        if checked {
+                                            if !ids.contains(monitor_index) {
+                                                ids.push(*monitor_index);
+                                            }
+                                        } else {
+                                            if let Some(pos) =
+                                                ids.iter().position(|x| x == monitor_index)
+                                            {
+                                                ids.remove(pos);
+                                            }
+                                        }
+                                    }
                                     // Add hover functionality to thumbnail
                                     let response = display_step_image(
                                         ui,
@@ -376,6 +288,22 @@ impl UsecaseEditor {
                             for (i, (monitor_index, data)) in after_images.iter().enumerate() {
                                 ui.vertical(|ui| {
                                     ui.label(format!("T+{}", i + 1));
+                                    // Add checkbox
+                                    let is_selected = ids.contains(monitor_index);
+                                    let mut checked = is_selected;
+                                    if ui.checkbox(&mut checked, "").changed() {
+                                        if checked {
+                                            if !ids.contains(monitor_index) {
+                                                ids.push(*monitor_index);
+                                            }
+                                        } else {
+                                            if let Some(pos) =
+                                                ids.iter().position(|x| x == monitor_index)
+                                            {
+                                                ids.remove(pos);
+                                            }
+                                        }
+                                    }
                                     // Add hover functionality to thumbnail
                                     let response = display_step_image(
                                         ui,
@@ -458,15 +386,24 @@ impl UsecaseEditor {
                 }
                 EventType::Text(text) => {
                     ui.label("Text");
-                    ui.text_edit_singleline(text);
+                    let mut text_clone = text.clone();
+                    if ui.text_edit_singleline(&mut text_clone).changed() {
+                        *text = text_clone;
+                    }
                 }
                 EventType::KeyDown(key) => {
                     ui.label("KeyDown");
-                    ui.text_edit_singleline(key);
+                    let mut key_clone = key.clone();
+                    if ui.text_edit_singleline(&mut key_clone).changed() {
+                        *key = key_clone;
+                    }
                 }
                 EventType::KeyUp(key) => {
                     ui.label("KeyUp");
-                    ui.text_edit_singleline(key);
+                    let mut key_clone = key.clone();
+                    if ui.text_edit_singleline(&mut key_clone).changed() {
+                        *key = key_clone;
+                    }
                 }
                 // Handle other event types as needed
                 _ => {}
