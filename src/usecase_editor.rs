@@ -291,6 +291,7 @@ impl UsecaseEditor {
                             2.0,
                         );
                     }
+                    let point = (point.x as i32, point.y as i32);
                     egui::ScrollArea::horizontal().show(ui, |ui| {
                         ui.horizontal(|ui| {
                             // Show thumbnails of Monitor1 images before and after current step
@@ -334,7 +335,7 @@ impl UsecaseEditor {
                                         ui,
                                         data,
                                         &format!("image_thump_{}", monitor_index),
-                                        (-1, -1),
+                                        (point.0, point.1),
                                         &mut self.cached_textures,
                                         true,
                                         8.0,
@@ -360,7 +361,7 @@ impl UsecaseEditor {
                                                     ui,
                                                     data,
                                                     &format!("image_{}", monitor_index),
-                                                    (-1, -1),
+                                                    (point.0, point.1),
                                                     &mut self.cached_textures,
                                                     true,
                                                     2.0,
@@ -380,7 +381,7 @@ impl UsecaseEditor {
                                         ui,
                                         data,
                                         &format!("image_thump_{}", monitor_index),
-                                        (-1, -1),
+                                        (point.0, point.1),
                                         &mut self.cached_textures,
                                         true,
                                         8.0,
@@ -406,7 +407,7 @@ impl UsecaseEditor {
                                                     ui,
                                                     data,
                                                     &format!("image_{}", monitor_index),
-                                                    (-1, -1),
+                                                    (point.0, point.1),
                                                     &mut self.cached_textures,
                                                     true,
                                                     2.0,
@@ -568,47 +569,4 @@ fn display_step_image(
 
     // Return a default response if we didn't show an image
     ui.allocate_response(egui::Vec2::ZERO, egui::Sense::hover())
-}
-
-fn display_thumpnails_prio_and_post_clicks(
-    ui: &mut egui::Ui,
-    monitor_data: &str,
-    texture_id: &str,
-    coords: (i32, i32),
-    cached_textures: &mut std::collections::HashMap<String, egui::TextureHandle>,
-    show_image: bool,
-) {
-    if let Some(texture) = cached_textures.get(texture_id) {
-        if show_image {
-            ui.image(texture);
-        }
-        return;
-    }
-
-    if let Ok(image_data) = base64::decode(monitor_data) {
-        if let Ok(image) = image::load_from_memory(&image_data) {
-            let image = image::imageops::resize(
-                &image,
-                image.width() / 8,
-                image.height() / 8,
-                image::imageops::FilterType::CatmullRom,
-            );
-            let size = image.dimensions();
-            let image =
-                egui::ColorImage::from_rgba_unmultiplied([size.0 as _, size.1 as _], &image);
-            // Draw a circle at the click coordinates, scaled down to match the thumbnail size
-            // let scaled_x = coords.0 as f32 / 8.0;
-            // let scaled_y = coords.1 as f32 / 8.0;
-            // let circle =
-            //     egui::Shape::circle_filled(egui::pos2(scaled_x, scaled_y), 4.0, egui::Color32::RED);
-            // ui.painter().add(circle);
-            let texture = ui
-                .ctx()
-                .load_texture(texture_id, image, egui::TextureOptions::default());
-            cached_textures.insert(texture_id.to_string(), texture.clone());
-            if show_image {
-                ui.image(&texture);
-            }
-        }
-    }
 }
