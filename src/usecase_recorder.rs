@@ -27,7 +27,7 @@ pub struct Point {
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EventType {
-    Click(Point, String),
+    Click(Point, String, #[serde(default)] Vec<usize>),
     KeyDown(String),
     KeyUp(String),
     Monitor1(String),
@@ -95,21 +95,23 @@ impl UseCaseRecorder {
     pub fn show_window(&mut self, ctx: &Context) {
         if self.show {
             let mut show = self.show;
-            egui::Window::new("Use Case Recorder").open(&mut show).show(ctx, |ui| {
-                ui.label("Use Case Recorder");
-                ui.label("Filename");
-                ui.add(egui::TextEdit::multiline(&mut self.usecase_name));
-                ui.label("Instructions");
-                ui.add(egui::TextEdit::multiline(&mut self.usecase_instructions));
+            egui::Window::new("Use Case Recorder")
+                .open(&mut show)
+                .show(ctx, |ui| {
+                    ui.label("Use Case Recorder");
+                    ui.label("Filename");
+                    ui.add(egui::TextEdit::multiline(&mut self.usecase_name));
+                    ui.label("Instructions");
+                    ui.add(egui::TextEdit::multiline(&mut self.usecase_instructions));
 
-                if ui.button("Record").clicked() {
-                    self.start_recording();
-                    self.show = false;
-                }
-                if ui.button("Stop").clicked() {
-                    self.stop_recording();
-                }
-            });
+                    if ui.button("Record").clicked() {
+                        self.start_recording();
+                        self.show = false;
+                    }
+                    if ui.button("Stop").clicked() {
+                        self.stop_recording();
+                    }
+                });
             if self.show {
                 self.show = show;
             }
@@ -120,12 +122,12 @@ impl UseCaseRecorder {
         let mut buf = vec![];
         #[cfg(target_os = "macos")]
         let image_buffer = image::imageops::resize(
-            &image_buffer, 
+            &image_buffer,
             image_buffer.width() / 2,
             image_buffer.height() / 2,
-            image::imageops::FilterType::Triangle
+            image::imageops::FilterType::Triangle,
         );
-        
+
         image_buffer
             .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
             .unwrap();
@@ -170,7 +172,7 @@ impl UseCaseRecorder {
                 //self.add_image_now = Some(now);
             }
         }
-        if let EventType::Click(ref _point, ref _op) = event {
+        if let EventType::Click(ref _point, ref _op, ref _ids) = event {
             //self.add_image = true;
             //let now = SystemTime::now();
             //self.add_image_delay = Some(Duration::from_secs(1));
@@ -324,8 +326,6 @@ impl UseCaseRecorder {
                                 // if c == '[' {
                                 //     c = '{';
                                 // }
-                                
-                                
                             }
                             result.push(c);
                         }

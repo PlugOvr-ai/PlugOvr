@@ -197,7 +197,7 @@ impl UseCaseReplay {
 
         for step in usecase.usecase_steps.iter() {
             match step {
-                EventType::Click(_, instruction) => {
+                EventType::Click(_, instruction, _) => {
                     usecase_actions
                         .actions
                         .push(ActionTypes::Click(instruction.clone()));

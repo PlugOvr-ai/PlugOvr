@@ -267,7 +267,7 @@ impl UsecaseEditor {
 
             // Handle click events and monitor data
             match step {
-                EventType::Click(point, desc) => {
+                EventType::Click(point, desc, ids) => {
                     ui.label(format!("Click coordinates: ({}, {})", point.x, point.y));
                     ui.label("Description:");
                     ui.text_edit_singleline(desc);

@@ -330,6 +330,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                             y: last_mouse_pos.1 as f32,
                                         },
                                         "".to_string(),
+                                        vec![],
                                     ));
                                 }
                             }
