@@ -233,7 +233,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
     #[cfg(feature = "computeruse_replay")]
     auto_execution_thread(usecase_replay.clone());
-    std::env::set_var("RUST_LOG", "error");
+    //std::env::set_var("RUST_LOG", "error");
 
     // tracing_subscriber::fmt::init();
     #[cfg(target_os = "macos")]
