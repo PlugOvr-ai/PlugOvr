@@ -62,8 +62,8 @@ jobs:
       - name: Build Release
         run: cargo build --release
 
-      - name: Build with computeruse
-        run: cargo build --release --features computeruse
+      - name: Build with computeruse features
+        run: cargo build --release --features "computeruse_editor,computeruse_record,computeruse_replay"
 
       - name: Run tests
-        run: cargo test --all --features computeruse
+        run: cargo test --all --features "computeruse_editor,computeruse_record,computeruse_replay"
