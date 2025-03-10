@@ -75,7 +75,7 @@ The video below is a combination of Qwen2.5-VL-7B for planning and a fine-tuned 
 Reach out if you like to know more.
 
 <video width="600" controls>
-  <source src="https://deepkomma.de/PlugOvr_Remote.mov" type="video/mp4">
+  <source src="https://deepkomma.de/PlugOvrRemote.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
 
