@@ -70,3 +70,12 @@ THIS IS A BETA FEATURE AND MIGHT NOT WORK AS EXPECTED.
 This is why we have no AUTO mode for computeruse yet. 
 
 Its all about getting experience about the capabilities of Qwen2.5VL-7B.
+
+The video below is a combination of Qwen2.5-VL-7B for planning and a fine-tuned Florence2 for detection.
+Reach out if you like to know more.
+
+<video width="600" controls>
+  <source src="https://deepkomma.de/PlugOvr_Remote.mov" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
