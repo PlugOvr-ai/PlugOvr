@@ -115,7 +115,7 @@ impl UseCaseReplay {
         let server_url_planning =
             load_server_url_planning().unwrap_or("http://127.0.0.1:8000/v1".to_string());
         let server_url_execution =
-            load_server_url_execution().unwrap_or("http://127.0.0.1:5001".to_string());
+            load_server_url_execution().unwrap_or("http://127.0.0.1:8000/v1".to_string());
         Self {
             index_instruction: Arc::new(Mutex::new(0)),
             index_action: Arc::new(Mutex::new(0)),
@@ -1277,7 +1277,7 @@ fn key_up(key: &str) {
 // fn load_image_from_file(path: &str) -> anyhow::Result<image::DynamicImage> {
 //     Ok(image::open(path)?)
 // }
-fn save_server_url_planning(server_url: &str) -> std::io::Result<()> {
+pub fn save_server_url_planning(server_url: &str) -> std::io::Result<()> {
     let mut path = dirs::home_dir().expect("Unable to get home directory");
     path.push(".plugovr");
     std::fs::create_dir_all(&path)?;
@@ -1289,7 +1289,7 @@ fn save_server_url_planning(server_url: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn save_server_url_execution(server_url: &str) -> std::io::Result<()> {
+pub fn save_server_url_execution(server_url: &str) -> std::io::Result<()> {
     let mut path = dirs::home_dir().expect("Unable to get home directory");
     path.push(".plugovr");
     std::fs::create_dir_all(&path)?;

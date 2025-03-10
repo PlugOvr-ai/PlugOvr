@@ -354,11 +354,11 @@
                     // Add status update
                     updateStatus(data);
 
-                    // Update URL fields if provided
-                    if (data.planning_url) {
+                    // Only update URL fields if they are explicitly included in the update
+                    if (data.planning_url !== undefined) {
                         document.getElementById('planningUrlInput').value = data.planning_url;
                     }
-                    if (data.execution_url) {
+                    if (data.execution_url !== undefined) {
                         document.getElementById('executionUrlInput').value = data.execution_url;
                     }
 
@@ -368,7 +368,7 @@
                         document.getElementById('stopBtn').style.display = data.enabled ? 'inline-block' : 'none';
                     }
                 } else if (data.type === 'url_update') {
-                    // Handle URL updates
+                    // Handle explicit URL updates
                     if (data.planning_url) {
                         document.getElementById('planningUrlInput').value = data.planning_url;
                     }

@@ -305,6 +305,12 @@ async fn set_planning_url_handler(
     if let Some(url) = command.url {
         let mut usecase_replay = state.usecase_replay.lock().unwrap();
         usecase_replay.server_url_planning = url.clone();
+
+        // Use the existing save function
+        if let Err(e) = crate::usecase_replay::save_server_url_planning(&url) {
+            println!("Error saving planning URL: {}", e);
+        }
+
         // Broadcast the URL change to all clients
         let update = serde_json::json!({
             "type": "url_update",
@@ -326,6 +332,12 @@ async fn set_execution_url_handler(
     if let Some(url) = command.url {
         let mut usecase_replay = state.usecase_replay.lock().unwrap();
         usecase_replay.server_url_execution = url.clone();
+
+        // Use the existing save function
+        if let Err(e) = crate::usecase_replay::save_server_url_execution(&url) {
+            println!("Error saving execution URL: {}", e);
+        }
+
         // Broadcast the URL change to all clients
         let update = serde_json::json!({
             "type": "url_update",
@@ -440,6 +452,9 @@ async fn handle_socket(socket: WebSocket, state: WebServerState) {
 
     // Spawn task to capture and send updates
     let update_task = tokio::spawn(async move {
+        let mut last_planning_url = String::new();
+        let mut last_execution_url = String::new();
+
         loop {
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
             let mut usecase_replay = state_clone.usecase_replay.lock().unwrap();
@@ -496,7 +511,8 @@ async fn handle_socket(socket: WebSocket, state: WebServerState) {
                     None
                 };
 
-                let update = serde_json::json!({
+                // Only include URLs in the update if they've changed
+                let mut update = serde_json::json!({
                     "type": "update",
                     "screenshot": base64_image,
                     "current_action": current_action,
@@ -504,10 +520,19 @@ async fn handle_socket(socket: WebSocket, state: WebServerState) {
                     "computing": *usecase_replay.computing_action.lock().unwrap(),
                     "computing_plan": *usecase_replay.computing_plan.lock().unwrap(),
                     "show": usecase_replay.show,
-                    "planning_url": usecase_replay.server_url_planning.clone(),
-                    "execution_url": usecase_replay.server_url_execution.clone(),
                 });
-                //println!("Sending update: {}", update);
+
+                // Only include URLs if they've changed
+                if usecase_replay.server_url_planning != last_planning_url {
+                    update["planning_url"] =
+                        serde_json::Value::String(usecase_replay.server_url_planning.clone());
+                    last_planning_url = usecase_replay.server_url_planning.clone();
+                }
+                if usecase_replay.server_url_execution != last_execution_url {
+                    update["execution_url"] =
+                        serde_json::Value::String(usecase_replay.server_url_execution.clone());
+                    last_execution_url = usecase_replay.server_url_execution.clone();
+                }
 
                 if let Err(e) = tx_clone.send(update.to_string()) {
                     println!("Error sending update: {}", e);
