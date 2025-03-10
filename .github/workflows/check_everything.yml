@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: deploy
+          ref: main
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           submodules: true
 
@@ -63,7 +63,7 @@ jobs:
         run: cargo build --release
 
       - name: Build with computeruse features
-        run: cargo build --release --features "computeruse_editor,computeruse_record,computeruse_replay"
+        run: cargo build --release --features computeruse
 
       - name: Run tests
-        run: cargo test --all --features "computeruse_editor,computeruse_record,computeruse_replay"
+        run: cargo test --all --features computeruse
