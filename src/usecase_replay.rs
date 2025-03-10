@@ -57,6 +57,10 @@ pub struct UseCaseReplay {
     pub auto_mode: Arc<Mutex<bool>>,
 }
 
+// SAFETY: The raw pointers in Monitor are only used for display capture and don't affect thread safety
+unsafe impl Send for UseCaseReplay {}
+unsafe impl Sync for UseCaseReplay {}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum ActionTypes {
