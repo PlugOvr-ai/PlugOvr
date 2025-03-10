@@ -74,5 +74,6 @@ Its all about getting experience about the capabilities of Qwen2.5VL-7B.
 The video below is a combination of Qwen2.5-VL-7B for planning and a fine-tuned Florence2 for detection.
 Reach out if you like to know more.
 
-[![Watch the video](https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg)](https://deepkomma.de/PlugOvrRemote.mp4)
+https://github.com/user-attachments/assets/54ccd427-aec8-45dd-b7f5-7e54d42a7070
+
 
