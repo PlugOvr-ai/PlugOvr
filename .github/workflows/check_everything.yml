@@ -15,10 +15,18 @@ jobs:
     strategy:
       matrix:
         include:
- #         - os: ubuntu-22.04
           - os: ubuntu-24.04
+            features: ""
+          - os: ubuntu-24.04
+            features: "--features computeruse"
           - os: windows-latest
+            features: ""
+          - os: windows-latest
+            features: "--features computeruse"
           - os: macos-latest
+            features: ""
+          - os: macos-latest
+            features: "--features computeruse"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,9 +67,9 @@ jobs:
 
       - name: Build
         if: startsWith(matrix.os, 'macos')
-        run: cargo build --release --features glow --no-default-features
+        run: cargo build --release ${{ matrix.features }}
 
       - name: Build
         if: startsWith(matrix.os, 'ubuntu') || startsWith(matrix.os, 'windows')
-        run: cargo build --release
+        run: cargo build --release ${{ matrix.features }}
 
