@@ -16,17 +16,8 @@ jobs:
       matrix:
         include:
           - os: ubuntu-24.04
-            features: ""
-          - os: ubuntu-24.04
-            features: "--features computeruse"
           - os: windows-latest
-            features: ""
-          - os: windows-latest
-            features: "--features computeruse"
           - os: macos-latest
-            features: ""
-          - os: macos-latest
-            features: "--features computeruse"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -65,11 +56,11 @@ jobs:
       - name: Clippy
         run: cargo clippy
 
-      - name: Build
-        if: startsWith(matrix.os, 'macos')
-        run: cargo build --release ${{ matrix.features }}
+      - name: Build Debug
+        run: cargo build
 
-      - name: Build
-        if: startsWith(matrix.os, 'ubuntu') || startsWith(matrix.os, 'windows')
-        run: cargo build --release ${{ matrix.features }}
+      - name: Build Release
+        run: cargo build --release
 
+      - name: Build with computeruse
+        run: cargo build --release --features computeruse
