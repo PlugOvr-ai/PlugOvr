@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
           ref: main
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
-          submodules: true
+          submodules: false
 
 
       - name: Install LLVM and Clang
