@@ -1,11 +1,11 @@
 use crate::llm::LLMSelector;
 use crate::usecase_recorder::EventType;
 use crate::usecase_recorder::UseCase;
-
 use egui_overlay::egui_render_three_d::{
     three_d::{ColorMaterial, Gm, Mesh},
     ThreeDBackend,
 };
+use std::time::Duration;
 
 #[cfg(target_os = "linux")]
 use gtk::false_;
@@ -54,6 +54,7 @@ pub struct UseCaseReplay {
     pub image_height: u32,
     pub recorded_usecases: Vec<UseCaseActions>,
     pub monitor: Option<Vec<Monitor>>,
+    pub auto_mode: Arc<Mutex<bool>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -134,6 +135,7 @@ impl UseCaseReplay {
             image_height: 0,
             recorded_usecases: vec![],
             monitor: None,
+            auto_mode: Arc::new(Mutex::new(false)),
         }
     }
     pub fn show_dialog(&mut self, egui_context: &egui::Context) {
@@ -558,7 +560,7 @@ impl UseCaseReplay {
         //self.show = true;
     }
     pub fn grab_screenshot(&mut self) {
-        println!("grab_screenshot");
+        //println!("grab_screenshot");
         if self.monitor.is_none() {
             let monitors = Monitor::all().unwrap();
             self.monitor = Some(monitors);
@@ -831,6 +833,7 @@ impl UseCaseReplay {
         if index_instruction >= self.vec_instructions.lock().unwrap().len() {
             *self.index_instruction.lock().unwrap() = 0;
             *self.index_action.lock().unwrap() = 0;
+            self.vec_instructions.lock().unwrap().clear();
             return;
         }
         if *self.computing_action.lock().unwrap() {
@@ -1020,7 +1023,7 @@ impl UseCaseReplay {
                             .get(index_action)
                             .unwrap()
                             .clone();
-
+                        #[cfg(not(feature = "computeruse_remote"))]
                         ui.add_sized(
                             egui::Vec2::new(600.0, 30.0),
                             egui::Label::new(
@@ -1072,6 +1075,10 @@ impl UseCaseReplay {
                         );
                     });
             });
+    }
+    pub fn set_auto_mode(&mut self, enabled: bool) {
+        let mut auto_mode = self.auto_mode.lock().unwrap();
+        *auto_mode = enabled;
     }
 }
 
@@ -1314,6 +1321,18 @@ fn load_server_url_execution() -> std::io::Result<String> {
     file.read_to_string(&mut contents)?;
     let server_url: String = serde_json::from_str(&contents)?;
     Ok(server_url)
+}
+
+pub fn auto_execution_thread(usecase_replay: Arc<Mutex<UseCaseReplay>>) {
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_secs(3));
+        {
+            let mut usecase_replay = usecase_replay.lock().unwrap();
+            if *usecase_replay.auto_mode.lock().unwrap() {
+                usecase_replay.step();
+            }
+        }
+    });
 }
 
 #[cfg(test)]

@@ -196,29 +196,39 @@
                 <input type="text" id="instructionInput" placeholder="Enter new instruction">
                 <button id="executeBtn">Plan Actions</button>
                 <button id="nextBtn">Perform Next Action</button>
+                <div class="form-check form-check-inline ms-2">
+                    <input class="form-check-input" type="checkbox" id="autoModeCheckbox">
+                    <label class="form-check-label" for="autoModeCheckbox">Auto Mode</label>
+                </div>
+                <button id="stopBtn" class="btn btn-danger" style="display: none;">Stop Execution</button>
                 <span id="status" class="status">Ready</span>
                 <a id="toggleUrlSettings" class="settings-toggle ms-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-gear" viewBox="0 0 16 16">
-                        <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
-                        <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                        class="bi bi-gear" viewBox="0 0 16 16">
+                        <path
+                            d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z" />
+                        <path
+                            d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z" />
                     </svg>&nbsp;
                     URL Settings
                 </a>
             </div>
-            
+
             <div id="urlSettingsSection">
                 <div class="row">
                     <div class="col-md-6">
                         <div class="input-group">
                             <span class="input-group-text">Planning URL</span>
-                            <input type="text" id="planningUrlInput" class="form-control" placeholder="Enter planning URL">
+                            <input type="text" id="planningUrlInput" class="form-control"
+                                placeholder="Enter planning URL">
                             <button id="setPlanningUrlBtn" class="btn btn-outline-secondary">Set</button>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="input-group">
                             <span class="input-group-text">Execution URL</span>
-                            <input type="text" id="executionUrlInput" class="form-control" placeholder="Enter execution URL">
+                            <input type="text" id="executionUrlInput" class="form-control"
+                                placeholder="Enter execution URL">
                             <button id="setExecutionUrlBtn" class="btn btn-outline-secondary">Set</button>
                         </div>
                     </div>
@@ -343,13 +353,19 @@
 
                     // Add status update
                     updateStatus(data);
-                    
+
                     // Update URL fields if provided
                     if (data.planning_url) {
                         document.getElementById('planningUrlInput').value = data.planning_url;
                     }
                     if (data.execution_url) {
                         document.getElementById('executionUrlInput').value = data.execution_url;
+                    }
+
+                    // Only update auto mode state if it's a dedicated auto_mode update
+                    if (data.type === 'auto_mode_update') {
+                        document.getElementById('autoModeCheckbox').checked = data.enabled;
+                        document.getElementById('stopBtn').style.display = data.enabled ? 'inline-block' : 'none';
                     }
                 } else if (data.type === 'url_update') {
                     // Handle URL updates
@@ -503,11 +519,44 @@
             document.getElementById('instructionInput').value = '';
         };
 
+        // Add auto mode functionality
+        document.getElementById('autoModeCheckbox').onchange = function () {
+            const isChecked = this.checked;
+            document.getElementById('stopBtn').style.display = isChecked ? 'inline-block' : 'none';
+
+            fetch('/command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: 'set_auto_mode',
+                    enabled: isChecked
+                })
+            });
+        };
+
+        document.getElementById('stopBtn').onclick = function () {
+            document.getElementById('autoModeCheckbox').checked = false;
+            document.getElementById('stopBtn').style.display = 'none';
+
+            fetch('/command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: 'set_auto_mode',
+                    enabled: false
+                })
+            });
+        };
+
         // Add event listeners for URL buttons
-        document.getElementById('setPlanningUrlBtn').onclick = function() {
+        document.getElementById('setPlanningUrlBtn').onclick = function () {
             const url = document.getElementById('planningUrlInput').value;
             if (!url) return;
-            
+
             fetch('/urls/planning', {
                 method: 'POST',
                 headers: {
@@ -518,15 +567,15 @@
                     url: url
                 })
             })
-            .then(response => response.text())
-            .then(result => console.log(result))
-            .catch(error => console.error('Error setting planning URL:', error));
+                .then(response => response.text())
+                .then(result => console.log(result))
+                .catch(error => console.error('Error setting planning URL:', error));
         };
 
-        document.getElementById('setExecutionUrlBtn').onclick = function() {
+        document.getElementById('setExecutionUrlBtn').onclick = function () {
             const url = document.getElementById('executionUrlInput').value;
             if (!url) return;
-            
+
             fetch('/urls/execution', {
                 method: 'POST',
                 headers: {
@@ -537,13 +586,13 @@
                     url: url
                 })
             })
-            .then(response => response.text())
-            .then(result => console.log(result))
-            .catch(error => console.error('Error setting execution URL:', error));
+                .then(response => response.text())
+                .then(result => console.log(result))
+                .catch(error => console.error('Error setting execution URL:', error));
         };
 
         // Add toggle functionality for URL settings
-        document.getElementById('toggleUrlSettings').onclick = function() {
+        document.getElementById('toggleUrlSettings').onclick = function () {
             const urlSettingsSection = document.getElementById('urlSettingsSection');
             if (urlSettingsSection.style.display === 'block') {
                 urlSettingsSection.style.display = 'none';

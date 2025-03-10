@@ -34,6 +34,8 @@ mod window_handling;
 #[cfg(feature = "computeruse_record")]
 use crate::usecase_recorder::EventType;
 #[cfg(feature = "computeruse_replay")]
+use crate::usecase_replay::auto_execution_thread;
+#[cfg(feature = "computeruse_replay")]
 use crate::usecase_replay::UseCaseReplay;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 use enigo::{Keyboard, Settings};
@@ -229,7 +231,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     #[cfg(feature = "computeruse_replay")]
     let usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
-
+    #[cfg(feature = "computeruse_replay")]
+    auto_execution_thread(usecase_replay.clone());
     std::env::set_var("RUST_LOG", "error");
 
     // tracing_subscriber::fmt::init();

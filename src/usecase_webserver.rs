@@ -1,11 +1,11 @@
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::{
     extract::State,
+    http::{header, Request, StatusCode},
+    middleware::{self, Next},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
     Json, Router,
-    middleware::{self, Next},
-    http::{Request, StatusCode, header},
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
 use futures::{sink::SinkExt, stream::StreamExt};
@@ -31,6 +31,7 @@ struct WebCommand {
     command: String,
     instruction: Option<String>,
     url: Option<String>,
+    enabled: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -93,7 +94,7 @@ pub async fn start_server(usecase_replay: Arc<Mutex<UseCaseReplay>>, password: O
     };
 
     let state_clone = state.clone();
-    
+
     let app = Router::new()
         .route("/login", get(login_handler))
         .route("/auth", post(auth_handler))
@@ -104,7 +105,10 @@ pub async fn start_server(usecase_replay: Arc<Mutex<UseCaseReplay>>, password: O
         .route("/urls/planning", post(set_planning_url_handler))
         .route("/urls/execution", post(set_execution_url_handler))
         .nest_service("/assets", ServeDir::new("assets"))
-        .layer(middleware::from_fn_with_state(state_clone.clone(), auth_middleware))
+        .layer(middleware::from_fn_with_state(
+            state_clone.clone(),
+            auth_middleware,
+        ))
         .with_state(state_clone);
 
     if let Some(pwd) = &state.password {
@@ -113,7 +117,7 @@ pub async fn start_server(usecase_replay: Arc<Mutex<UseCaseReplay>>, password: O
     } else {
         println!("Starting webserver on http://localhost:3000");
     }
-    
+
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
@@ -123,7 +127,8 @@ async fn index_handler() -> impl IntoResponse {
 }
 
 async fn login_handler() -> impl IntoResponse {
-    Html(r#"
+    Html(
+        r#"
     <!DOCTYPE html>
     <html>
     <head>
@@ -242,7 +247,8 @@ async fn login_handler() -> impl IntoResponse {
         </script>
     </body>
     </html>
-    "#)
+    "#,
+    )
 }
 
 #[derive(Deserialize)]
@@ -258,18 +264,18 @@ async fn auth_handler(
         if &auth.password == correct_password {
             // Password is correct
             println!("Authentication successful for password: {}", auth.password);
-            
+
             // Create a response with a cookie
             let mut response = axum::response::Response::builder()
                 .status(StatusCode::OK)
                 .header(header::CONTENT_TYPE, "text/plain")
                 .header(
                     header::SET_COOKIE,
-                    "plugovr_auth=true; Path=/; HttpOnly; SameSite=Strict"
+                    "plugovr_auth=true; Path=/; HttpOnly; SameSite=Strict",
                 )
                 .body("Authentication successful".into())
                 .unwrap();
-                
+
             response
         } else {
             // Password is incorrect
@@ -376,6 +382,25 @@ async fn command_handler(
                 "New instruction executed".to_string()
             } else {
                 "No instruction provided".to_string()
+            }
+        }
+        "set_auto_mode" => {
+            if let Some(enabled) = command.enabled {
+                let mut usecase_replay = state.usecase_replay.lock().unwrap();
+                usecase_replay.set_auto_mode(enabled);
+
+                // Send dedicated auto mode update to all clients
+                let update = serde_json::json!({
+                    "type": "auto_mode_update",
+                    "enabled": enabled
+                });
+                for (_, tx) in state.clients.lock().unwrap().iter() {
+                    let _ = tx.send(update.to_string());
+                }
+
+                "Auto mode updated".to_string()
+            } else {
+                "No auto mode state provided".to_string()
             }
         }
         _ => "Unknown command".to_string(),
