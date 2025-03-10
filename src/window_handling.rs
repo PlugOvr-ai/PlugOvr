@@ -22,8 +22,8 @@ pub struct ActiveWindow(pub usize);
 pub fn activate_window(window_title: &ActiveWindow) -> Result<(), Box<dyn Error>> {
     use std::time::Duration;
     use x11rb::connection::Connection;
-    use x11rb::protocol::xproto::{ConnectionExt, EventMask, Window};
     use x11rb::protocol::Event;
+    use x11rb::protocol::xproto::{ConnectionExt, EventMask, Window};
 
     let (conn, screen_num) = x11rb::connect(None)?;
     let screen = &conn.setup().roots[screen_num];

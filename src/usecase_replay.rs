@@ -2,8 +2,8 @@ use crate::llm::LLMSelector;
 use crate::usecase_recorder::EventType;
 use crate::usecase_recorder::UseCase;
 use egui_overlay::egui_render_three_d::{
-    three_d::{ColorMaterial, Gm, Mesh},
     ThreeDBackend,
+    three_d::{ColorMaterial, Gm, Mesh},
 };
 use std::time::Duration;
 
@@ -392,7 +392,7 @@ impl UseCaseReplay {
         }
         let system_prompt = format!(
             "You are an expert in controlling a computer, you can click on the screen, write text, and press keys.{} {} think about the steps to complete the task, jump to the beginning of large text boxes with Home and PageUp, output the actions in JSON format.",
-            add_examples,examplejson
+            add_examples, examplejson
         );
 
         println!("system_prompt: {}", system_prompt);
@@ -1324,12 +1324,14 @@ fn load_server_url_execution() -> std::io::Result<String> {
 }
 
 pub fn auto_execution_thread(usecase_replay: Arc<Mutex<UseCaseReplay>>) {
-    thread::spawn(move || loop {
-        thread::sleep(Duration::from_secs(3));
-        {
-            let mut usecase_replay = usecase_replay.lock().unwrap();
-            if *usecase_replay.auto_mode.lock().unwrap() {
-                usecase_replay.step();
+    thread::spawn(move || {
+        loop {
+            thread::sleep(Duration::from_secs(3));
+            {
+                let mut usecase_replay = usecase_replay.lock().unwrap();
+                if *usecase_replay.auto_mode.lock().unwrap() {
+                    usecase_replay.step();
+                }
             }
         }
     });

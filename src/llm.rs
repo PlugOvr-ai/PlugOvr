@@ -14,10 +14,10 @@ use egui::{Context, Window};
 
 use image_24::{ImageBuffer, Rgba};
 use ollama_rs::{
-    generation::chat::{request::ChatMessageRequest, ChatMessage, MessageRole},
+    Ollama,
+    generation::chat::{ChatMessage, MessageRole, request::ChatMessageRequest},
     generation::images::Image,
     generation::options::GenerationOptions,
-    Ollama,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -34,7 +34,7 @@ async fn call_ollama(
     ai_answer: Arc<Mutex<String>>,
     screenshots: &Screenshots,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
-    use base64::{engine::general_purpose, Engine as _};
+    use base64::{Engine as _, engine::general_purpose};
 
     let screenshot_base64 = screenshots
         .iter()

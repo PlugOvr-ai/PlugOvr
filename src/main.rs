@@ -7,7 +7,7 @@
 #![windows_subsystem = "windows"]
 use clap::Parser;
 #[cfg(feature = "computeruse_remote")]
-use rand::{distributions::Alphanumeric, Rng};
+use rand::{Rng, distributions::Alphanumeric};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -34,15 +34,15 @@ mod window_handling;
 #[cfg(feature = "computeruse_record")]
 use crate::usecase_recorder::EventType;
 #[cfg(feature = "computeruse_replay")]
-use crate::usecase_replay::auto_execution_thread;
-#[cfg(feature = "computeruse_replay")]
 use crate::usecase_replay::UseCaseReplay;
+#[cfg(feature = "computeruse_replay")]
+use crate::usecase_replay::auto_execution_thread;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 use enigo::{Keyboard, Settings};
 #[cfg(not(target_os = "macos"))]
 use rdev::listen;
 #[cfg(target_os = "macos")]
-use rdev::{listen, Event};
+use rdev::{Event, listen};
 use std::error::Error;
 use std::time::Duration;
 #[cfg(feature = "computeruse_editor")]
@@ -236,9 +236,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //std::env::set_var("RUST_LOG", "error");
 
     // tracing_subscriber::fmt::init();
+    use rdev::Event;
     #[cfg(target_os = "macos")]
     use rdev::set_is_main_thread;
-    use rdev::Event;
     #[cfg(target_os = "macos")]
     set_is_main_thread(false);
 

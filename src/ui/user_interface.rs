@@ -1,10 +1,11 @@
+use crate::ActiveWindow;
 use crate::llm::LLMSelector;
 use crate::ui::assistance_window::AssistanceWindow;
 use crate::ui::main_window::MainWindow;
 use crate::ui::screen_dimensions::get_screen_dimensions;
-use crate::ui::template_editor::create_prompt_templates;
 use crate::ui::template_editor::TemplateEditor;
 use crate::ui::template_editor::TemplateMap;
+use crate::ui::template_editor::create_prompt_templates;
 #[cfg(feature = "computeruse_editor")]
 use crate::usecase_editor::UsecaseEditor;
 #[cfg(feature = "computeruse_record")]
@@ -12,11 +13,10 @@ use crate::usecase_recorder::UseCaseRecorder;
 #[cfg(feature = "computeruse_replay")]
 use crate::usecase_replay::UseCaseReplay;
 use crate::version_check;
-use crate::ActiveWindow;
 use egui_overlay::EguiOverlay;
 use std::collections::HashMap;
 use tray_icon::{
-    menu::AboutMetadata, menu::MenuItem, menu::PredefinedMenuItem, TrayIcon, TrayIconBuilder,
+    TrayIcon, TrayIconBuilder, menu::AboutMetadata, menu::MenuItem, menu::PredefinedMenuItem,
 };
 
 #[cfg(feature = "three_d")]
@@ -273,7 +273,7 @@ fn load_icon_from_memory(icon_data: &[u8]) -> tray_icon::Icon {
     };
     tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to create icon")
 }
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{Sender, channel};
 #[cfg(target_os = "linux")]
 fn run_once_tray_icon_init(
     tray_icon: &mut Option<TrayIcon>,
@@ -328,8 +328,8 @@ fn run_once_tray_icon_init(
     });
 }
 
-use tray_icon::menu::Menu;
 use tray_icon::Icon;
+use tray_icon::menu::Menu;
 fn create_menu(
     login_menu_item: &MenuItem,
     welcome_menu_item: &MenuItem,
