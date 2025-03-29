@@ -83,7 +83,7 @@ computeruse_editor = []
 computeruse_remote = []
 
 [dependencies]
-#plugovr_cs = { path = "crates/plugovr_cs", optional = true }
+#plugovr_cs = { path = "crates/plugovr_cs" }
 plugovr_types = { path = "crates/plugovr_types" }
 
 egui_overlay = { version = "0.8.0", git = "https://github.com/PlugOvr-ai/egui_overlay.git", default-features = false, features = [
@@ -111,10 +111,8 @@ egui_autocomplete = { version = "7.0.0" }
 serde = { version = "1.0.210", features = ["derive"] }
 dirs = "6.0.0"
 
-#kalosm = { version = "0.3.2", features = ["language"] }
-kalosm = { git = "https://github.com/floneum/floneum.git", rev = "90b6af9e9fcdd13007586eb5771decb24004c43b", features = [
-    "language",
-] }
+kalosm = { version = "0.4.0", features = ["language"] }
+
 strum = { version = "0.27.0", features = ["derive"] }
 strum_macros = "0.27.0"
 similar = "2.6.0"

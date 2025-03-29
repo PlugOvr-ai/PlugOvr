@@ -29,6 +29,7 @@ use egui_overlay::egui_render_glow::GlowBackend as DefaultGfxBackend;
 #[cfg(feature = "wgpu")]
 use egui_overlay::egui_render_wgpu::WgpuBackend as DefaultGfxBackend;
 
+use plugovr_types::UserInfo;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
@@ -360,6 +361,7 @@ fn create_menu(
         &llm_selector_i,
 
         &template_i,
+        #[cfg(feature = "computeruse_editor")]
         &usecase_editor_i,
         &PredefinedMenuItem::separator(),
         &PredefinedMenuItem::about(

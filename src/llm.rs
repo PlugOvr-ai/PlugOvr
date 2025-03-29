@@ -116,42 +116,18 @@ async fn call_local_llm(
             "Model is not locked",
         )));
     }
-    let markers = model
-        .as_ref()
-        .unwrap()
-        .as_ref()
-        .unwrap()
-        .chat_markers()
-        .clone();
-    let prompt = format!(
-        "{}\nYou are a helpful AI assistant.{}{}Context: {} Instruction: {}{}{}",
-        markers.as_ref().unwrap().system_prompt_marker,
-        markers.as_ref().unwrap().end_system_prompt_marker,
-        markers.as_ref().unwrap().user_marker,
-        context,
-        instruction,
-        markers.as_ref().unwrap().end_user_marker,
-        markers.as_ref().unwrap().assistant_marker,
-    );
 
-    let stop_on = markers
-        .as_ref()
-        .map(|m| m.end_assistant_marker.to_string())
-        .unwrap_or_else(|| "# Input".to_string());
+    let prompt = format!("Context: {} Instruction: {}", context, instruction);
+
     let model_instance = {
         let mut guard = model.unwrap();
         guard.as_mut().unwrap().clone()
     };
-
-    let mut output = model_instance
-        .stream_text(&prompt)
-        .with_max_length(1000)
-        .with_stop_on(stop_on)
-        .await
-        .unwrap();
+    let mut stream = model_instance(&prompt);
 
     let mut response = String::new();
-    while let Some(token) = output.next().await {
+
+    while let Some(token) = stream.next().await {
         response.push_str(&token);
 
         // Update ai_answer with the current response
