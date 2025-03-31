@@ -33,7 +33,7 @@ impl UsecaseEditor {
                 self.file_dialog.update(ctx);
 
                 // Check if the user picked a file.
-                if let Some(path) = self.file_dialog.take_selected() {
+                if let Some(path) = self.file_dialog.take_picked() {
                     self.picked_file = Some(path.to_path_buf());
                     if let Some(path) = &self.picked_file {
                         if let Ok(contents) = fs::read_to_string(path) {
@@ -115,7 +115,7 @@ impl UsecaseEditor {
         egui::menu::bar(ui, |ui| {
             egui::menu::menu_button(ui, "File", |ui| {
                 if ui.button("Open").clicked() {
-                    self.file_dialog.select_file();
+                    self.file_dialog.pick_file();
                 }
                 if ui.button("Save").clicked() {
                     if let Some(usecase) = &mut self.usecase {
