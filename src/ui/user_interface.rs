@@ -176,7 +176,9 @@ impl PlugOvr {
         // Load the Noto Sans font from a file
         fonts.font_data.insert(
             "NotoSans".to_string(),
-            FontData::from_static(include_bytes!("../../assets/NotoSans-Regular.ttf")),
+            Arc::new(FontData::from_static(include_bytes!(
+                "../../assets/NotoSans-Regular.ttf"
+            ))),
         );
 
         // Define which fonts to use for each style

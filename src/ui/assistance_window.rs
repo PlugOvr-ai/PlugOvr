@@ -452,8 +452,12 @@ impl AssistanceWindow {
                                 egui::Pos2::new(start.x / scale, start.y / scale),
                                 hover_pos,
                             );
-                            ui.painter()
-                                .rect_stroke(rect, 0.0, (2.0, egui::Color32::RED));
+                            ui.painter().rect_stroke(
+                                rect,
+                                0.0,
+                                (2.0, egui::Color32::RED),
+                                egui::StrokeKind::Inside,
+                            );
                         }
                     }
 

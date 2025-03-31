@@ -16,4 +16,4 @@ publish = false
 
 image = "0.24.9"
 serde = "1.0.216"
-egui = "0.28.1"
+egui = "0.31.1"
