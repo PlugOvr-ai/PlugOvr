@@ -128,11 +128,11 @@ jobs:
 
       - name: Build
         if: startsWith(matrix.os, 'macos')
-        run: cargo build --release --features glow --no-default-features
+        run: cargo build --profile release-lto --features glow --no-default-features
 
       - name: Build
         if: startsWith(matrix.os, 'ubuntu') || startsWith(matrix.os, 'windows')
-        run: cargo build --release
+        run: cargo build --profile release-lto
 
       - name: Create Debian package
         if: startsWith(matrix.os, 'ubuntu')
@@ -144,12 +144,12 @@ jobs:
         if: startsWith(matrix.os, 'macos')
         run: |
           cargo install cargo-bundle
-          cargo bundle --release
+          cargo bundle --profile release-lto
       - name: Create installer Windows
         if: startsWith(matrix.os, 'windows')
         run: |
           cargo install cargo-packager
-          cargo packager --release
+          cargo packager --profile release-lto
 
       - name: Sign files with Trusted Signing
         if: startsWith(matrix.os, 'windows')
