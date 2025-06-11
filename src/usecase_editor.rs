@@ -405,6 +405,13 @@ impl UsecaseEditor {
                         *key = key_clone;
                     }
                 }
+                EventType::ActiveProgram(program) => {
+                    ui.label("ActiveProgram");
+                    let mut program_clone = program.clone();
+                    if ui.text_edit_singleline(&mut program_clone).changed() {
+                        *program = program_clone;
+                    }
+                }
                 // Handle other event types as needed
                 _ => {}
             }

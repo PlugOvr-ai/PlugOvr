@@ -250,6 +250,63 @@ pub fn get_active_window() -> Option<ActiveWindow> {
         .map(ActiveWindow)
 }
 
+#[cfg(target_os = "linux")]
+pub fn get_active_window_title() -> Option<String> {
+    let (conn, screen_num) = x11rb::connect(None).unwrap();
+    let screen = &conn.setup().roots[screen_num];
+    let root = screen.root;
+
+    // Get the active window ID
+    let net_active_window = conn
+        .intern_atom(false, b"_NET_ACTIVE_WINDOW")
+        .unwrap()
+        .reply()
+        .unwrap()
+        .atom;
+
+    let active_window = conn
+        .get_property(
+            false,
+            root,
+            net_active_window,
+            x11rb::protocol::xproto::AtomEnum::WINDOW,
+            0,
+            1,
+        )
+        .unwrap()
+        .reply()
+        .unwrap();
+
+    if let Some(window_id) = active_window.value32().and_then(|mut v| v.next()) {
+        // Get the window title
+        let net_wm_name = conn
+            .intern_atom(false, b"_NET_WM_NAME")
+            .unwrap()
+            .reply()
+            .unwrap()
+            .atom;
+
+        let utf8_string = conn
+            .intern_atom(false, b"UTF8_STRING")
+            .unwrap()
+            .reply()
+            .unwrap()
+            .atom;
+
+        let title = match conn.get_property(false, window_id, net_wm_name, utf8_string, 0, 1024) {
+            Ok(prop_cookie) => match prop_cookie.reply() {
+                Ok(prop) => prop,
+                Err(_) => return None,
+            },
+            Err(_) => return None,
+        };
+
+        String::from_utf8(title.value).ok()
+    } else {
+        None
+    }
+}
+
 /*#[cfg(target_os = "linux")]
 fn get_active_window2() -> Option<ActiveWindow> {
     let (conn, screen_num) = x11rb::connect(None).unwrap();

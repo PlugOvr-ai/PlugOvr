@@ -1,3 +1,4 @@
+use crate::window_handling::get_active_window_title;
 use egui::Context;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -7,6 +8,7 @@ pub struct UseCaseRecorder {
     usecase: Option<UseCase>,
     usecase_name: String,
     usecase_instructions: String,
+    last_active_program: Option<String>,
     pub recording: Arc<Mutex<bool>>,
     pub show: bool,
     pub add_image: bool,
@@ -34,6 +36,7 @@ pub enum EventType {
     Monitor2(String),
     Monitor3(String),
     Text(String),
+    ActiveProgram(String),
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UseCase {
@@ -80,6 +83,7 @@ impl UseCaseRecorder {
             usecase: None,
             usecase_name: String::new(),
             usecase_instructions: String::new(),
+            last_active_program: None,
             recording: recording.clone(),
             show: false,
             add_image: false,
@@ -151,6 +155,24 @@ impl UseCaseRecorder {
         }
     }
     pub fn add_event(&mut self, event: EventType) {
+        let active_program = get_active_window_title();
+        if let Some(active_program) = active_program {
+            if let Some(last_program) = &self.last_active_program {
+                if *last_program != active_program {
+                    println!(
+                        "Active program changed from {} to {}",
+                        last_program, active_program
+                    );
+                    self.last_active_program = Some(active_program.clone());
+                    self.add_event(EventType::ActiveProgram(active_program));
+                }
+            } else {
+                println!("First active program: {}", active_program);
+                self.last_active_program = Some(active_program.clone());
+                self.add_event(EventType::ActiveProgram(active_program));
+            }
+        }
+
         if let EventType::Monitor1(ref _base64) = event {
             println!("Adding monitor1 image");
         } else if let EventType::Monitor2(ref _base64) = event {
