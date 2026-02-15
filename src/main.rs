@@ -29,6 +29,8 @@ mod usecase_replay;
 #[cfg(feature = "computeruse_remote")]
 mod usecase_webserver;
 mod version_check;
+#[cfg(feature = "voice_control")]
+mod voice_control;
 mod window_handling;
 
 #[cfg(feature = "computeruse_record")]
@@ -37,6 +39,8 @@ use crate::usecase_recorder::EventType;
 use crate::usecase_replay::UseCaseReplay;
 #[cfg(feature = "computeruse_replay")]
 use crate::usecase_replay::auto_execution_thread;
+#[cfg(feature = "voice_control")]
+use crate::voice_control::VoiceControl;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 use enigo::{Keyboard, Settings};
 #[cfg(not(target_os = "macos"))]
@@ -233,6 +237,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let usecase_replay = Arc::new(Mutex::new(UseCaseReplay::new()));
     #[cfg(feature = "computeruse_replay")]
     auto_execution_thread(usecase_replay.clone());
+
+    #[cfg(feature = "voice_control")]
+    let voice_control = Arc::new(Mutex::new(VoiceControl::new()));
+
     //std::env::set_var("RUST_LOG", "error");
 
     // tracing_subscriber::fmt::init();
@@ -259,6 +267,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .lock()
             .unwrap()
             .load_usecase("calendar.json".to_string());
+        #[cfg(feature = "voice_control")]
+        let voice_control = voice_control.clone();
         let _ = thread::Builder::new()
             .name("Key Event Thread".to_string())
             .spawn(move || {
@@ -359,6 +369,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                     .unwrap() = 0;
                                 *usecase_replay.lock().unwrap().index_action.lock().unwrap() = 0;
                                 usecase_replay.lock().unwrap().show_dialog = true;
+                            }
+                            #[cfg(feature = "voice_control")]
+                            if key == rdev::Key::F5 {
+                                voice_control.lock().unwrap().toggle_recording();
                             }
                             if key == rdev::Key::ControlLeft {
                                 *control_pressed.lock().unwrap() = true;
@@ -536,6 +550,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             usecase_replay,
             #[cfg(feature = "computeruse_editor")]
             usecase_editor,
+            #[cfg(feature = "voice_control")]
+            voice_control,
         )
         .await;
     }

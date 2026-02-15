@@ -1,5 +1,5 @@
 // Add these imports at the top of the file
-use kalosm::language::*;
+//use kalosm::language::*;
 #[cfg(feature = "cs")]
 use plugovr_cs::cloud_llm::call_aws_lambda;
 use plugovr_types::{Screenshots, UserInfo};
@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 use plugovr_cs::user_management::get_user;
 
 use egui::{Context, Window};
+use futures::StreamExt;
 
 use image_24::{ImageBuffer, Rgba};
 use ollama_rs::{
@@ -101,45 +102,45 @@ async fn call_ollama(
         }
     }
 }
-async fn call_local_llm(
-    _input: String,
-    context: String,
-    instruction: String,
-    ai_answer: Arc<Mutex<String>>,
-    model: Arc<Mutex<Option<Llama>>>,
-) -> Result<String, Box<dyn Error + Send + Sync>> {
-    let model = model.try_lock();
-    if model.is_err() {
-        eprintln!("Model is not locked");
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Model is not locked",
-        )));
-    }
+// async fn call_local_llm(
+//     _input: String,
+//     context: String,
+//     instruction: String,
+//     ai_answer: Arc<Mutex<String>>,
+//     model: Arc<Mutex<Option<Llama>>>,
+// ) -> Result<String, Box<dyn Error + Send + Sync>> {
+//     let model = model.try_lock();
+//     if model.is_err() {
+//         eprintln!("Model is not locked");
+//         return Err(Box::new(std::io::Error::new(
+//             std::io::ErrorKind::Other,
+//             "Model is not locked",
+//         )));
+//     }
 
-    let prompt = format!("Context: {} Instruction: {}", context, instruction);
+//     let prompt = format!("Context: {} Instruction: {}", context, instruction);
 
-    let model_instance = {
-        let mut guard = model.unwrap();
-        guard.as_mut().unwrap().clone()
-    };
-    let mut stream = model_instance(&prompt);
+//     let model_instance = {
+//         let mut guard = model.unwrap();
+//         guard.as_mut().unwrap().clone()
+//     };
+//     let mut stream = model_instance(&prompt);
 
-    let mut response = String::new();
+//     let mut response = String::new();
 
-    while let Some(token) = stream.next().await {
-        response.push_str(&token);
+//     while let Some(token) = stream.next().await {
+//         response.push_str(&token);
 
-        // Update ai_answer with the current response
-        *ai_answer.lock().unwrap() = response.clone();
-    }
-    Ok(response)
-}
+//         // Update ai_answer with the current response
+//         *ai_answer.lock().unwrap() = response.clone();
+//     }
+//     Ok(response)
+// }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum LLMType {
     Cloud(CloudModel),
-    Local(LocalModel),
+//    Local(LocalModel),
     Ollama(String),
 }
 use strum::IntoEnumIterator;
@@ -158,40 +159,40 @@ impl CloudModel {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, EnumIter, Serialize, Deserialize)]
-pub enum LocalModel {
-    Llama32S1bChat,
-    Llama32S3bChat,
-}
-impl LocalModel {
-    pub fn description(&self) -> String {
-        match self {
-            LocalModel::Llama32S1bChat => "Llama 3.2 1B Chat".to_string(),
-            LocalModel::Llama32S3bChat => "Llama 3.2 3B Chat".to_string(),
-        }
-    }
-}
+// #[derive(Clone, Copy, PartialEq, EnumIter, Serialize, Deserialize)]
+// pub enum LocalModel {
+//     Llama32S1bChat,
+//     Llama32S3bChat,
+// }
+// impl LocalModel {
+//     pub fn description(&self) -> String {
+//         match self {
+//             LocalModel::Llama32S1bChat => "Llama 3.2 1B Chat".to_string(),
+//             LocalModel::Llama32S3bChat => "Llama 3.2 3B Chat".to_string(),
+//         }
+//     }
+// }
 impl LLMType {
     pub fn description(&self) -> String {
         match self {
             LLMType::Cloud(cloud_model) => format!("{} - Cloud", cloud_model.description()),
-            LLMType::Local(local_model) => format!("{} - Local", local_model.description()),
+          //  LLMType::Local(local_model) => format!("{} - Local", local_model.description()),
             LLMType::Ollama(model) => format!("Ollama - {}", model),
         }
     }
 }
-impl LocalModel {
-    pub fn source(&self) -> LlamaSource {
-        match self {
-            LocalModel::Llama32S1bChat => LlamaSource::llama_3_2_1b_chat(),
-            LocalModel::Llama32S3bChat => LlamaSource::llama_3_2_3b_chat(),
-        }
-    }
-}
+// impl LocalModel {
+//     pub fn source(&self) -> LlamaSource {
+//         match self {
+//             LocalModel::Llama32S1bChat => LlamaSource::llama_3_2_1b_chat(),
+//             LocalModel::Llama32S3bChat => LlamaSource::llama_3_2_3b_chat(),
+//         }
+//     }
+// }
 
 pub struct LLMSelector {
     llm_type: LLMType,
-    model: Arc<Mutex<Option<Llama>>>,
+    //model: Arc<Mutex<Option<Llama>>>,
     show_window: bool,
     download_progress: Arc<Mutex<f32>>,
     download_error: Arc<Mutex<Option<String>>>,
@@ -216,7 +217,7 @@ impl LLMSelector {
         let ollama = Ollama::default();
         LLMSelector {
             llm_type,
-            model: Arc::new(Mutex::new(None)),
+            //model: Arc::new(Mutex::new(None)),
             show_window: false,
             download_progress: Arc::new(Mutex::new(0.0)),
             download_error: Arc::new(Mutex::new(None)),
@@ -226,28 +227,28 @@ impl LLMSelector {
         }
     }
 
-    pub async fn load_model(&self) {
-        let mut model = self.model.lock().unwrap();
-        *model = match &self.llm_type {
-            LLMType::Local(LocalModel::Llama32S1bChat) => Some(
-                Llama::builder()
-                    .with_source(LlamaSource::llama_3_2_1b_chat())
-                    .build()
-                    .await
-                    .unwrap(),
-            ),
-            LLMType::Local(LocalModel::Llama32S3bChat) => Some(
-                Llama::builder()
-                    .with_source(LlamaSource::llama_3_2_3b_chat())
-                    .build()
-                    .await
-                    .unwrap(),
-            ),
-            LLMType::Cloud(CloudModel::AnthropicHaiku) => None,
-            LLMType::Cloud(CloudModel::AnthropicSonnet3_5) => None,
-            LLMType::Ollama(_model) => None,
-        };
-    }
+    // pub async fn load_model(&self) {
+    //     let mut model = self.model.lock().unwrap();
+    //     *model = match &self.llm_type {
+    //         LLMType::Local(LocalModel::Llama32S1bChat) => Some(
+    //             Llama::builder()
+    //                 .with_source(LlamaSource::llama_3_2_1b_chat())
+    //                 .build()
+    //                 .await
+    //                 .unwrap(),
+    //         ),
+    //         LLMType::Local(LocalModel::Llama32S3bChat) => Some(
+    //             Llama::builder()
+    //                 .with_source(LlamaSource::llama_3_2_3b_chat())
+    //                 .build()
+    //                 .await
+    //                 .unwrap(),
+    //         ),
+    //         LLMType::Cloud(CloudModel::AnthropicHaiku) => None,
+    //         LLMType::Cloud(CloudModel::AnthropicSonnet3_5) => None,
+    //         LLMType::Ollama(_model) => None,
+    //     };
+    // }
 
     pub fn process_input(
         &self,
@@ -265,7 +266,7 @@ impl LLMSelector {
             llm_type = llm_from_template;
         }
 
-        let model = self.model.clone();
+       // let model = self.model.clone();
         let spinner_clone = spinner.clone();
         let user_info = self.user_info.clone();
         if (llm_type == LLMType::Cloud(CloudModel::AnthropicHaiku)
@@ -306,21 +307,21 @@ impl LLMSelector {
                         ))
                     }
                 }
-                LLMType::Local(_) => {
-                    use tokio::runtime::Runtime;
-                    let rt = Runtime::new().unwrap();
-                    rt.block_on(async {
-                        let result = call_local_llm(
-                            prompt.clone(),
-                            context,
-                            instruction,
-                            ai_answer.clone(),
-                            model,
-                        )
-                        .await;
-                        Ok((result?, false))
-                    })
-                }
+                // LLMType::Local(_) => {
+                //     use tokio::runtime::Runtime;
+                //     let rt = Runtime::new().unwrap();
+                //     rt.block_on(async {
+                //         let result = call_local_llm(
+                //             prompt.clone(),
+                //             context,
+                //             instruction,
+                //             ai_answer.clone(),
+                //             model,
+                //         )
+                //         .await;
+                //         Ok((result?, false))
+                //     })
+                // }
                 LLMType::Ollama(model) => {
                     use tokio::runtime::Runtime;
                     let rt = Runtime::new().unwrap();
@@ -390,74 +391,74 @@ impl LLMSelector {
                     }
                 }
 
-                ui.heading("Local Models");
-                for local_model in LocalModel::iter() {
-                    let requires_download = Llama::builder()
-                        .with_source(local_model.source())
-                        .requires_download();
+                // ui.heading("Local Models");
+                // for local_model in LocalModel::iter() {
+                //     let requires_download = Llama::builder()
+                //         .with_source(local_model.source())
+                //         .requires_download();
 
-                    ui.horizontal(|ui| {
-                        if ui
-                            .add_enabled(
-                                !requires_download,
-                                egui::RadioButton::new(
-                                    self.llm_type == LLMType::Local(local_model),
-                                    LLMType::Local(local_model).description(),
-                                ),
-                            )
-                            .clicked()
-                        {
-                            self.llm_type = LLMType::Local(local_model);
-                            save_llm_type(LLMType::Local(local_model))
-                                .unwrap_or_else(|e| eprintln!("Failed to save LLM type: {}", e));
+                //     ui.horizontal(|ui| {
+                //         if ui
+                //             .add_enabled(
+                //                 !requires_download,
+                //                 egui::RadioButton::new(
+                //                     self.llm_type == LLMType::Local(local_model),
+                //                     LLMType::Local(local_model).description(),
+                //                 ),
+                //             )
+                //             .clicked()
+                //         {
+                //             self.llm_type = LLMType::Local(local_model);
+                //             save_llm_type(LLMType::Local(local_model))
+                //                 .unwrap_or_else(|e| eprintln!("Failed to save LLM type: {}", e));
 
-                            let model = self.model.clone();
-                            let llama_source = local_model.source();
+                //             let model = self.model.clone();
+                //             let llama_source = local_model.source();
 
-                            tokio::spawn(async move {
-                                let llama = Llama::builder()
-                                    .with_source(llama_source)
-                                    .build()
-                                    .await
-                                    .unwrap();
-                                if let Ok(mut model_guard) = model.lock() {
-                                    *model_guard = Some(llama);
-                                } else {
-                                    eprintln!("Failed to acquire lock on model");
-                                }
-                            });
-                        }
-                        if !requires_download {
-                            ui.label("Downloaded");
-                        } else if ui.button("Download").clicked() {
-                            let llama_source = local_model.source();
-                            let download_progress = self.download_progress.clone();
-                            let download_error = self.download_error.clone();
-                            tokio::spawn(async move {
-                                let download_progress = download_progress.clone();
-                                let _llama = match Llama::builder()
-                                    .with_source(llama_source)
-                                    .build_with_loading_handler(move |x| match x.clone() {
-                                        ModelLoadingProgress::Downloading { .. } => {
-                                            *download_progress.lock().unwrap() = x.progress()
-                                        }
-                                        ModelLoadingProgress::Loading { progress } => {
-                                            *download_progress.lock().unwrap() = progress;
-                                        }
-                                    })
-                                    .await
-                                {
-                                    Ok(llama) => llama,
-                                    Err(e) => {
-                                        eprintln!("Failed to download/load model: {}", e);
-                                        *download_error.lock().unwrap() = Some(e.to_string());
-                                        return;
-                                    }
-                                };
-                            });
-                        }
-                    });
-                }
+                //             tokio::spawn(async move {
+                //                 let llama = Llama::builder()
+                //                     .with_source(llama_source)
+                //                     .build()
+                //                     .await
+                //                     .unwrap();
+                //                 if let Ok(mut model_guard) = model.lock() {
+                //                     *model_guard = Some(llama);
+                //                 } else {
+                //                     eprintln!("Failed to acquire lock on model");
+                //                 }
+                //             });
+                //         }
+                //         if !requires_download {
+                //             ui.label("Downloaded");
+                //         } else if ui.button("Download").clicked() {
+                //             let llama_source = local_model.source();
+                //             let download_progress = self.download_progress.clone();
+                //             let download_error = self.download_error.clone();
+                //             tokio::spawn(async move {
+                //                 let download_progress = download_progress.clone();
+                //                 let _llama = match Llama::builder()
+                //                     .with_source(llama_source)
+                //                     .build_with_loading_handler(move |x| match x.clone() {
+                //                         ModelLoadingProgress::Downloading { .. } => {
+                //                             *download_progress.lock().unwrap() = x.progress()
+                //                         }
+                //                         ModelLoadingProgress::Loading { progress } => {
+                //                             *download_progress.lock().unwrap() = progress;
+                //                         }
+                //                     })
+                //                     .await
+                //                 {
+                //                     Ok(llama) => llama,
+                //                     Err(e) => {
+                //                         eprintln!("Failed to download/load model: {}", e);
+                //                         *download_error.lock().unwrap() = Some(e.to_string());
+                //                         return;
+                //                     }
+                //                 };
+                //             });
+                //         }
+                //     });
+                // }
                 if let Some(ollama_models) = self.ollama_models.lock().unwrap().as_ref() {
                     ui.heading("Ollama Models");
                     let ollama_models = ollama_models.clone();
@@ -536,8 +537,8 @@ impl fmt::Display for LLMType {
         match self {
             LLMType::Cloud(CloudModel::AnthropicHaiku) => write!(f, "AnthropicHaiku"),
             LLMType::Cloud(CloudModel::AnthropicSonnet3_5) => write!(f, "AnthropicSonnet3_5"),
-            LLMType::Local(LocalModel::Llama32S1bChat) => write!(f, "Llama32S1bChat"),
-            LLMType::Local(LocalModel::Llama32S3bChat) => write!(f, "Llama32S3bChat"),
+            // LLMType::Local(LocalModel::Llama32S1bChat) => write!(f, "Llama32S1bChat"),
+            // LLMType::Local(LocalModel::Llama32S3bChat) => write!(f, "Llama32S3bChat"),
             LLMType::Ollama(model) => write!(f, "{}", model),
         }
     }

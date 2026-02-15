@@ -1,7 +1,7 @@
 use crate::llm::CloudModel; // Add this line
 use crate::llm::LLMSelector;
 use crate::llm::LLMType;
-use crate::llm::LocalModel;
+//use crate::llm::LocalModel;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use strum::IntoEnumIterator;
@@ -79,13 +79,13 @@ impl TemplateEditor {
                                                 cloud_model.description(),
                                             );
                                         }
-                                        for local_model in LocalModel::iter() {
-                                            ui.selectable_value(
-                                                &mut selected_llm,
-                                                Some(LLMType::Local(local_model)),
-                                                local_model.description(),
-                                            );
-                                        }
+                                        // for local_model in LocalModel::iter() {
+                                        //     ui.selectable_value(
+                                        //         &mut selected_llm,
+                                        //         Some(LLMType::Local(local_model)),
+                                        //         local_model.description(),
+                                        //     );
+                                        // }
                                         let ollama_models = self
                                             .llm_selector
                                             .lock()

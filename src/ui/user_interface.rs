@@ -13,6 +13,8 @@ use crate::usecase_recorder::UseCaseRecorder;
 #[cfg(feature = "computeruse_replay")]
 use crate::usecase_replay::UseCaseReplay;
 use crate::version_check;
+#[cfg(feature = "voice_control")]
+use crate::voice_control::VoiceControl;
 use egui_overlay::EguiOverlay;
 use std::collections::HashMap;
 use tray_icon::{
@@ -47,6 +49,7 @@ pub async fn run(
     #[cfg(feature = "computeruse_record")] usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
     #[cfg(feature = "computeruse_replay")] usecase_replay: Arc<Mutex<UseCaseReplay>>,
     #[cfg(feature = "computeruse_editor")] usecase_editor: Arc<Mutex<UsecaseEditor>>,
+    #[cfg(feature = "voice_control")] voice_control: Arc<Mutex<VoiceControl>>,
 ) {
     // use tracing_subscriber::{fmt, prelude::*, EnvFilter};
     // // if RUST_LOG is not set, we will use the following filters
@@ -71,6 +74,8 @@ pub async fn run(
         usecase_replay,
         #[cfg(feature = "computeruse_editor")]
         usecase_editor,
+        #[cfg(feature = "voice_control")]
+        voice_control,
     )
     .await;
     egui_overlay::start(data);
@@ -112,6 +117,8 @@ pub struct PlugOvr {
     pub usecase_replay: Arc<Mutex<UseCaseReplay>>,
     #[cfg(feature = "computeruse_editor")]
     pub usecase_editor: Arc<Mutex<UsecaseEditor>>,
+    #[cfg(feature = "voice_control")]
+    pub voice_control: Arc<Mutex<VoiceControl>>,
 }
 
 impl PlugOvr {
@@ -127,6 +134,7 @@ impl PlugOvr {
         #[cfg(feature = "computeruse_record")] usecase_recorder: Arc<Mutex<UseCaseRecorder>>,
         #[cfg(feature = "computeruse_replay")] usecase_replay: Arc<Mutex<UseCaseReplay>>,
         #[cfg(feature = "computeruse_editor")] usecase_editor: Arc<Mutex<UsecaseEditor>>,
+        #[cfg(feature = "voice_control")] voice_control: Arc<Mutex<VoiceControl>>,
     ) -> Self {
         let (screen_width, screen_height) = get_screen_dimensions();
         // Import the user_management module
@@ -256,9 +264,11 @@ impl PlugOvr {
             usecase_replay: usecase_replay.clone(),
             #[cfg(feature = "computeruse_editor")]
             usecase_editor: usecase_editor.clone(),
+            #[cfg(feature = "voice_control")]
+            voice_control: voice_control.clone(),
         };
 
-        plug_ovr.llm_selector.lock().unwrap().load_model().await;
+      //  plug_ovr.llm_selector.lock().unwrap().load_model().await;
 
         plug_ovr.template_editor.load_templates();
 
@@ -660,6 +670,29 @@ impl EguiOverlay for PlugOvr {
                     .unwrap()
                     .show_dialog(egui_context);
             }
+        }
+
+        #[cfg(feature = "voice_control")]
+        {
+            // Check for transcription results and execute as computer control commands
+            let transcription = self
+                .voice_control
+                .lock()
+                .unwrap()
+                .check_transcription_result();
+            if let Some(text) = transcription {
+                println!("Voice Control: Executing command: \"{}\"", text);
+                self.usecase_replay
+                    .lock()
+                    .unwrap()
+                    .execute_usecase(text);
+                self.usecase_replay.lock().unwrap().show = true;
+            }
+            // Display voice control status overlay
+            self.voice_control
+                .lock()
+                .unwrap()
+                .show_voice_status(egui_context);
         }
 
         // here you decide if you want to be passthrough or not.
