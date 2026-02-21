@@ -371,8 +371,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                 usecase_replay.lock().unwrap().show_dialog = true;
                             }
                             #[cfg(feature = "voice_control")]
-                            if key == rdev::Key::F5 {
-                                voice_control.lock().unwrap().toggle_recording();
+                            {
+                                #[cfg(target_os = "macos")]
+                                if key == rdev::Key::KeyM && *control_pressed.lock().unwrap() {
+                                    voice_control.lock().unwrap().toggle_recording();
+                                }
+                                #[cfg(not(target_os = "macos"))]
+                                if key == rdev::Key::F5 {
+                                    voice_control.lock().unwrap().toggle_recording();
+                                }
                             }
                             if key == rdev::Key::ControlLeft {
                                 *control_pressed.lock().unwrap() = true;

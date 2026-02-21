@@ -37,7 +37,7 @@ enum AudioMessage {
 ///
 /// ## Usage
 ///
-/// Press **F5** to start recording, press **F5** again to stop.
+/// Press **Ctrl+M** (macOS) or **F5** (Linux/Windows) to start recording, press again to stop.
 /// The audio is transcribed and executed as a computer control command.
 pub struct VoiceControl {
     /// Whether audio is currently being recorded.
@@ -352,6 +352,9 @@ impl VoiceControl {
                     return;
                 }
 
+                #[cfg(target_os = "macos")]
+                println!("Voice Control: Recording started. Press Ctrl+M to stop.");
+                #[cfg(not(target_os = "macos"))]
                 println!("Voice Control: Recording started. Press F5 to stop.");
 
                 // Poll until recording is stopped
@@ -506,6 +509,9 @@ impl VoiceControl {
                                 .color(egui::Color32::RED)
                                 .size(20.0),
                         );
+                        #[cfg(target_os = "macos")]
+                        ui.label("Recording... Press Ctrl+M to stop");
+                        #[cfg(not(target_os = "macos"))]
                         ui.label("Recording... Press F5 to stop");
                     });
                 } else if is_transcribing {
